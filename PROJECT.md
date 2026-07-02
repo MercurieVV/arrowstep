@@ -58,6 +58,22 @@ scala-cli compile .     # scala-cli path (project.scala)
 > Keep command output lean (scala-rules §19): pipe to `grep -i error` / `head`, redirect success
 > logs to `/dev/null`. Prefix with `rtk` when available.
 
+## Scripts — prefer `scripts/` over ad-hoc commands
+
+Common chores have a committed scala-cli script under `scripts/`. **Use these instead of hand-rolling
+equivalent shell** — they detect the build tool (sbt / mill / scala-cli) and encode project
+conventions (e.g. worktrees live at a visible path, never inside a hidden `.`-dir). Run with
+`scala-cli run scripts/<name>`.
+
+| Script | When to use it | Invocation |
+|---|---|---|
+| `worktree-start.scala` | Start a task in an isolated git worktree branched off the default branch. | `scala-cli run scripts/worktree-start.scala -- <branch>` |
+| `worktree-finish.scala` | From inside a worktree, wrap it up and clean it out (auto-detects the branch from the path, or pass it). | `scala-cli run scripts/worktree-finish.scala [-- <branch>]` |
+| `git-pre-commit.scala` | Pre-commit gate: scalafmt / scalafix checks (skips if neither config is present). | `scala-cli run scripts/git-pre-commit.scala` |
+| `git-pre-push.scala` | Pre-push gate: compile + test via the detected build tool (mill `prePush` here). | `scala-cli run scripts/git-pre-push.scala` |
+| `version-bump.scala` | Bump the version in the build file. | `scala-cli run scripts/version-bump.scala -- <major\|minor\|patch>` |
+| `create-task-tree.sc` | (Re)create the GitHub issue task tree as native sub-issues. Labels idempotent; **rerunning duplicates issues**. Needs `gh` authed with `repo` scope. | `scala-cli run scripts/create-task-tree.sc` |
+
 ## ScalaSemantic MCP
 
 @scala-rules.md [`scala-rules.md`](scala-rules.md)
