@@ -113,3 +113,5 @@ hs_err_pid*
 /scripts/.scala-build/ide-inputs.json
 /scripts/.scala-build/ide-launcher-options.json
 /scripts/.scala-build/ide-options-v2.json
+!/scripts/.bsp/
+!/scripts/.scala-build/
