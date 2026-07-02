@@ -1,4 +1,4 @@
-# agent-arrows — Design
+# arrowstep — Design
 
 A Scala library for **typed, compiler-checked, replayable dialogues between programs and coding
 agents** (Claude Code, Gemini CLI, aider, ...). The flow of a dialogue is one visible, lawful

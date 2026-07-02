@@ -170,7 +170,7 @@ fights the stdout discipline. Revisit only if the simpler modes prove insufficie
 ### D10 — Build & stack
 
 Scala 3, scala-cli, dependencies: `cats-core`, `cats-effect`, `os-lib`, `ujson`. Library name
-`agent-arrows`. Modules by package (`core` = no effects-runtime coupling, `runtime`, `example`).
+`arrowstep`. Modules by package (`core` = no effects-runtime coupling, `runtime`, `example`).
 
 ---
 

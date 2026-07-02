@@ -44,7 +44,7 @@ code yet by explicit decision**; docs only.
 - [ ] Log-file layout & rotation under `.agents/logs/`
 
 ## Phase 5 — First real consumer
-- [ ] Migrate `scala-llm-template/Setup.scala` onto agent-arrows (replace `getAgentAnswers`
+- [ ] Migrate `scala-llm-template/Setup.scala` onto arrowstep (replace `getAgentAnswers`
       readLine protocol with `ReplayAsk`; express Setup as a `Flow`)
 - [ ] The one-paragraph agent instruction added to that project's CLAUDE.md
 - [ ] Feedback loop: whatever Setup needed that the library lacked → issues here
