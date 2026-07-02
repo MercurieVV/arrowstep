@@ -3,14 +3,14 @@
 You are acting as an expert Scala engineer. When writing, refactoring, or reviewing Scala code in this codebase, you must follow these rules strictly:
 
 ## 1. Syntax & Style
-* Syntax and coding styles are controlled automatically by Scalafmt and Scalafix linting rules. Do not manually format code in ways that violate these configurations; rely on automatic formatting and fixing tools.
+* Syntax and coding styles are controlled automatically by Scalafmt and Scalafix linting rules.
 
 ## 2. Functional Programming Standards
 * **Pure FP Style**: Always write code in a pure functional programming style.
-* **Consequences**: Avoid mutable state (`var`), handle all side effects explicitly, never return or use `null`, and represent errors explicitly using type-safe structures like `Either`, `Try`, or monadic effects.
+* **Thought patterns**: Math based. Think on project as objects and relationships (category theory), ADTs. Use abstractions, layers of abstractions (from business to technical), parallel/sequential morphisms, programming on types
 
 ## 3. Scala 3 Features
-* Feel free to use advanced Scala 3 features: `given`/`using` for implicits, `enum` for ADTs, extension methods, type lambdas, and union/intersection types.
+* Feel free to use advanced Scala 3 features: `given`/`using` for implicits, `enum` for ADTs, extension methods, typeclasses, derivations, type lambdas, union/intersection types, opaque types.
 
 ## 4. Cats & Cats Effect (Typelevel Ecosystem)
 * Use Cats Effect for managing side effects and concurrency.
