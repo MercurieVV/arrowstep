@@ -4,7 +4,6 @@ Central project context and coding rules are imported below. Read them; put proj
 `PROJECT.md`, not here.
 
 @PROJECT.md
-@scala-rules.md
 
 ## Claude-specific notes
 

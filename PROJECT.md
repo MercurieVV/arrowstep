@@ -60,9 +60,8 @@ scala-cli compile .     # scala-cli path (project.scala)
 
 ## ScalaSemantic MCP
 
-Registered as `scala-semantic` in [.mcp.json](.mcp.json). Compile before use so SemanticDB exists.
-For `.scala` source reading/searching/analysis, prefer its tools over `grep`/`cat`/`rg`
-(scala-rules §18). Launcher install (once, if missing):
+@scala-rules.md [`scala-rules.md`](scala-rules.md)
+@SCALA_SEMANTIC_RULES.md [`SCALA_SEMANTIC_RULES.md`](SCALA_SEMANTIC_RULES.md)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/MercurieVV/ScalaSemantic/master/scripts/install.sh | sh

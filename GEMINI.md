@@ -4,7 +4,6 @@ Context files for Gemini CLI / agy. Central project context and coding rules are
 Put project facts in `PROJECT.md`, not here.
 
 @PROJECT.md
-@scala-rules.md
 
 ## Gemini / agy notes
 

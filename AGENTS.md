@@ -5,8 +5,6 @@ directive, so **read these two files at the start of every task** — they are t
 
 1. [`PROJECT.md`](PROJECT.md) — central project context (what arrowstep is, architecture,
    stack, build commands, doc index).
-2. [`scala-rules.md`](scala-rules.md) — mandatory Scala 3 coding rules (pure FP, cats-effect,
-   MUnit, wartremover, stainless, ScalaSemantic MCP usage, output minimization).
 
 Then read `docs/DECISIONS.md` before proposing any architectural change.
 
