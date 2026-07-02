@@ -1,0 +1,17 @@
+# CLAUDE.md — arrowstep
+
+Central project context and coding rules are imported below. Read them; put project facts in
+`PROJECT.md`, not here.
+
+@PROJECT.md
+@scala-rules.md
+
+## Claude-specific notes
+
+- **ScalaSemantic MCP** (`scala-semantic`) is the primary tool for `.scala` files. Run
+  `mill app.compile` first so SemanticDB exists, then use its tools instead of Grep/Read/Bash on
+  `.scala` sources (scala-rules §18).
+- Follow the wire-protocol discipline when touching runtime code: protocol JSON on **stdout only**,
+  everything human-readable on **stderr** (D1, D9).
+- Do not add "Co-Authored-By" trailers to commits.
+- Keep command output lean; prefix with `rtk` when installed (scala-rules §19).
