@@ -4,7 +4,7 @@ For any Scala (`.scala`) source questions, file operations, search, or analysis,
 Preferably compile code before usage, therefore more SclaSemantic functions could be used with better result.
 
 1. **NEVER** use generic text/file-reading, viewing, or searching tools (whether built-in agent tools like `view_file`/`grep_search`, or shell commands like
-`rg`/`grep`/`cat`/`sed`) on `.scala`, `.mill` or `.sc` files.
+`rg`/`grep`/`cat`/`sed`/`perl`) on `.scala`, `.mill` or `.sc` files.
 2. **ALWAYS** use the custom tools provided by the `scala-semantic` MCP server:
    * **To read/view the contents of a file**: Use the `annotated_source` MCP tool.
    * **For all other queries** (searching, finding usages, hierarchies, etc.): Select the appropriate tool from the registered `scala-semantic` MCP tools.

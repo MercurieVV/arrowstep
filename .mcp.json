@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "scala-semantic": {
-      "command": "/Users/viktorskalinins/.local/bin/scalasemantic-mcp",
+      "command": "/Users/viktorskalinins/.local/bin/scalasemantic-mcp.sh",
       "args": ["/Users/viktorskalinins/IdeaProjects/my/arrowstep"]
     }
   }
