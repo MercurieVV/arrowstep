@@ -52,7 +52,7 @@ You are acting as an expert Scala engineer. When writing, refactoring, or review
 ## 19. Command Execution & Token Output Minimization
 * **Minimize Output Volume**: To prevent token bloat, always minimize stdout/stderr output when running commands. Avoid dumping massive log streams, command traces, or verbose build success messages into the LLM context.
 * **Use Token-Optimized CLI Proxies**: If `rtk` (Rust Token Killer) is installed and verified, prefix commands with `rtk` (e.g. `rtk git status`, `rtk sbt test`) to leverage transparent token-filtering proxying.
-* **Filter Log Streams & Errors**: When running tests, compiles, or other scripts, redirect or pipe outputs to isolate errors or limit lines:
+* **Filter Log Streams & Errors**: When running any scala related commands, apps, scripts, tools, when whole result not required, redirect or pipe outputs to isolate errors or limit lines:
   * Pipe compile/test logs to `grep` with context flags to capture only errors (e.g., `| grep -C 3 -i error` or `| grep -i fail`).
   * Use `head -n N` or `tail -n N` to capture only a small, representative slice of command outputs when scanning general outputs.
   * Suppress standard success logs or stdout using redirect syntax (`> /dev/null`) if you only need the command exit status or error streams.
