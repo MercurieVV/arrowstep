@@ -7,9 +7,16 @@
 //> using exclude scripts
 //> using exclude mdoc-docs
 //> using exclude website
+//> using exclude build.sc
+//> using exclude out
+//> using exclude .scala-build
+//> using exclude .bsp
 //> using dep org.typelevel::cats-core:2.13.0
 //> using dep org.typelevel::cats-effect:3.7.0
+//> using dep com.lihaoyi::os-lib:0.11.8
+//> using dep com.lihaoyi::ujson:4.4.3
 //> using test.dep org.scalameta::munit:1.3.3
 //> using test.dep org.typelevel::shapeless3-deriving:3.6.0
-//> using plugin ch.epfl.lara::stainless-compiler-plugin:0.9.8.1
+// Stainless is intentionally not enabled yet: the compiler plugin coordinate is not
+// published for Scala 3.8.4, so formal verification stays non-blocking for Phase 0.
 //> using plugin org.wartremover::wartremover:3.6.1

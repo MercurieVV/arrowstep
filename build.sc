@@ -18,14 +18,17 @@ object app extends ScalaModule {
   def ivyDeps = Agg(
     // [dependencies-start]
     ivy"org.typelevel::cats-core:2.13.0",
-    ivy"org.typelevel::cats-effect:3.7.0"
+    ivy"org.typelevel::cats-effect:3.7.0",
+    ivy"com.lihaoyi::os-lib:0.11.8",
+    ivy"com.lihaoyi::ujson:4.4.3"
     // [dependencies-end]
   )
 
   def scalacPluginIvyDeps = Agg(
     // [plugins-start]
-    ivy"ch.epfl.lara::stainless-compiler-plugin:0.9.8.1",
     ivy"org.wartremover:::wartremover:3.6.1"
+    // Stainless is intentionally not enabled yet: the compiler plugin coordinate is not
+    // published for Scala 3.8.4, so formal verification stays non-blocking for Phase 0.
     // [plugins-end]
   )
 
