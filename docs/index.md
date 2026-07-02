@@ -8,3 +8,7 @@ This documentation is compiled and type-checked using **mdoc**.
 val message = "Hello from Scala 3 type-checked docs!"
 println(message)
 ```
+
+## Release
+
+Publishing metadata and release commands are documented in [RELEASE.md](RELEASE.md).
