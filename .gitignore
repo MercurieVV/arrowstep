@@ -105,15 +105,3 @@ hs_err_pid*
 /.idea/modules.xml
 /.idea/vcs.xml
 /arrowstep.iml
-/scripts/.bsp/scala-cli.json
-/scripts/.scala-build/.bloop/scripts_6a85a5686d-3195659c69/bloop-internal-classes/main-9fPuFXOcTS--XArTlooPeQ==/GitPreCommit.tasty
-/scripts/.scala-build/.bloop/scripts_6a85a5686d-3195659c69/scripts_6a85a5686d-3195659c69-analysis.bin
-/scripts/.scala-build/.bloop/scripts_6a85a5686d-3195659c69.json
-/scripts/.scala-build/scripts_6a85a5686d-3195659c69/classes/main/GitPreCommit.tasty
-/scripts/.scala-build/scripts_6a85a5686d-3195659c69/src_generated/main/git-pre-commit.scala
-/scripts/.scala-build/ide-envs.json
-/scripts/.scala-build/ide-inputs.json
-/scripts/.scala-build/ide-launcher-options.json
-/scripts/.scala-build/ide-options-v2.json
-!/scripts/.bsp/
-!/scripts/.scala-build/
