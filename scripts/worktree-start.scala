@@ -1,6 +1,8 @@
 #!/usr/bin/env scala-cli
 
 //> using scala 3.3.4
+//> using options -Ysemanticdb
+//> using options -sourceroot:.
 //> using dep com.lihaoyi::os-lib:0.11.8
 
 import os._

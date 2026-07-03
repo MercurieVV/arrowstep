@@ -1,5 +1,6 @@
 //> using scala 3.8.4
 //> using options -Ysemanticdb
+//> using options -sourceroot:.
 //> using options -Wunused:imports
 //> using options -P:wartremover:traverser:org.wartremover.warts.Unsafe
 // //> using options -Werror
@@ -7,7 +8,7 @@
 //> using exclude scripts
 //> using exclude mdoc-docs
 //> using exclude website
-//> using exclude build.sc
+//> using exclude build.mill
 //> using exclude out
 //> using exclude .scala-build
 //> using exclude .bsp

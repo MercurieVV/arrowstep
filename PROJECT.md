@@ -41,8 +41,9 @@ cannot reach the effects stage (compile error, not convention).
 
 - Scala 3.8.4, Typelevel: `cats-core`, `cats-effect`. Tests: MUnit (+ shapeless3 deriving).
 - Compiler plugins: **wartremover** (Unsafe warts), **stainless** (formal verification).
-- `-Ysemanticdb` **on** (build.sc + project.scala) → ScalaSemantic MCP works after a compile.
-- Two build entry points: **Mill** (`build.sc`, module `app`, `docs`) and **scala-cli**
+- SemanticDB **on** in Mill modules (`build.mill`), `project.scala`, and standalone
+  `scripts/*.scala` / `scripts/*.sc` → ScalaSemantic MCP works after a compile.
+- Two build entry points: **Mill** (`build.mill`, module `app`, `docs`) and **scala-cli**
   (`project.scala`). Scripts under `scripts/` are scala-cli. mdoc docs in `mdoc-docs/`.
 - Package split (per D10): `core` (no effects-runtime coupling), `runtime`, `example`.
 
@@ -68,16 +69,24 @@ conventions (e.g. worktrees live at a visible path, never inside a hidden `.`-di
 | Script | When to use it | Invocation |
 |---|---|---|
 | `worktree-start.scala` | Start a task in an isolated git worktree branched off the default branch. | `scala-cli run scripts/worktree-start.scala -- <branch>` |
-| `worktree-finish.scala` | From inside a worktree, wrap it up and clean it out (auto-detects the branch from the path, or pass it). | `scala-cli run scripts/worktree-finish.scala [-- <branch>]` |
+| `worktree-finish.scala` | Clean out a finished task worktree after the PR flow (auto-detects the branch from the path, or pass it). Skips local merge by default; use `--merge-local` only for non-PR local branch flows. | `scala-cli run scripts/worktree-finish.scala -- [--merge-local] [--delete-remote] [<branch>]` |
 | `git-pre-commit.scala` | Pre-commit gate: scalafmt / scalafix checks (skips if neither config is present). | `scala-cli run scripts/git-pre-commit.scala` |
 | `git-pre-push.scala` | Pre-push gate: compile + test via the detected build tool (mill `prePush` here). | `scala-cli run scripts/git-pre-push.scala` |
 | `version-bump.scala` | Bump the version in the build file. | `scala-cli run scripts/version-bump.scala -- <major\|minor\|patch>` |
 | `create-task-tree.sc` | (Re)create the GitHub issue task tree as native sub-issues. Labels idempotent; **rerunning duplicates issues**. Needs `gh` authed with `repo` scope. | `scala-cli run scripts/create-task-tree.sc` |
 
+Common PR task flow: `worktree-start.scala -- <issue>`, implement in `.worktrees/<issue>`, run
+`git-pre-push.scala` or `mill prePush`, push/create/merge the PR with `gh`, post the issue output
+comment, then run `worktree-finish.scala -- <issue>` to remove the local worktree and branch. Use
+`worktree-finish.scala -- --merge-local <branch>` only when intentionally skipping the PR flow.
+
 ## ScalaSemantic MCP
 
 @scala-rules.md [`scala-rules.md`](scala-rules.md)
 @SCALA_SEMANTIC_RULES.md [`SCALA_SEMANTIC_RULES.md`](SCALA_SEMANTIC_RULES.md)
+
+Codex loads the project-scoped ScalaSemantic MCP server from `.codex/config.toml` when this repo is
+trusted. `.mcp.json` is kept for other MCP-aware tools that read that file directly.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/MercurieVV/ScalaSemantic/master/scripts/install.sh | sh

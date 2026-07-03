@@ -1,6 +1,8 @@
 #!/usr/bin/env scala-cli
 
 //> using scala 3.3.4
+//> using options -Ysemanticdb
+//> using options -sourceroot:.
 //> using dep com.lihaoyi::os-lib:0.11.8
 
 import os._
@@ -20,6 +22,7 @@ object VersionBump:
       os.proc("git", "rev-parse", "--show-toplevel").call().out.text().trim
     )
     val buildSbt = repoRoot / "build.sbt"
+    val buildMill = repoRoot / "build.mill"
     val buildSc = repoRoot / "build.sc"
     val projectScala = repoRoot / "project.scala"
 
@@ -34,9 +37,10 @@ object VersionBump:
       regex.findFirstMatchIn(content).foreach { m =>
         currentVersionOpt = Some(m.group(1))
       }
-    else if os.exists(buildSc) then
-      targetFileOpt = Some(buildSc)
-      content = os.read(buildSc)
+    else if os.exists(buildMill) || os.exists(buildSc) then
+      val millBuild = if os.exists(buildMill) then buildMill else buildSc
+      targetFileOpt = Some(millBuild)
+      content = os.read(millBuild)
       val regex = "(?i)def\\s*publishVersion\\s*=\\s*\"(.*?)\"".r
       val regex2 = "(?i)val\\s*version\\s*=\\s*\"(.*?)\"".r
       regex
@@ -70,7 +74,7 @@ object VersionBump:
           (defaultVer, buildSbt)
         else
           println(
-            "Error: Could not locate build.sbt, build.sc, or project.scala to find version"
+            "Error: Could not locate build.sbt, build.mill, build.sc, or project.scala to find version"
           )
           sys.exit(1)
 
@@ -97,7 +101,7 @@ object VersionBump:
           "version\\s*:=\\s*\".*?\"",
           s"version := \"$nextVersion\""
         )
-      case f if f == buildSc =>
+      case f if f == buildMill || f == buildSc =>
         if content.contains("def publishVersion") then
           content.replaceFirst(
             "def\\s*publishVersion\\s*=\\s*\".*?\"",
@@ -116,4 +120,4 @@ object VersionBump:
       case _ => content
 
     os.write.over(targetFile, updatedContent)
-    println(s"✓ Updated version in ${targetFile.relativeTo(repoRoot)}")
+    println(s"Updated version in ${targetFile.relativeTo(repoRoot)}")

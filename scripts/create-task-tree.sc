@@ -1,4 +1,6 @@
 //> using scala 3.8.4
+//> using options -Ysemanticdb
+//> using options -sourceroot:.
 //> using dep com.lihaoyi::os-lib:0.11.8
 //> using dep com.lihaoyi::ujson:4.4.3
 
@@ -122,9 +124,9 @@ val leaves = List(
 Create the build so `mill app.compile` and `scala-cli compile .` both work, with SemanticDB on.
 
 ### Details
-- Two entry points (D10): **Mill** `build.sc` (modules `app`, `docs`) and **scala-cli** `project.scala`. Keep dependency/plugin lists in sync.
+- Two entry points (D10): **Mill** `build.mill` (modules `app`, `docs`) and **scala-cli** `project.scala`. Keep dependency/plugin lists in sync.
 - Scala **3.8.4**. Deps: `org.typelevel::cats-core`, `org.typelevel::cats-effect`, `com.lihaoyi::os-lib`, `com.lihaoyi::ujson`. Tests: MUnit (+ shapeless3 deriving).
-- Compiler options: `-Ysemanticdb` **on** in both build.sc and project.scala (ScalaSemantic MCP depends on it). Wartremover (Unsafe warts) + stainless plugins wired but non-blocking to start.
+- Compiler options: SemanticDB **on** in `build.mill`, `project.scala`, and standalone scripts (ScalaSemantic MCP depends on it). Wartremover (Unsafe warts) + stainless plugins wired but non-blocking to start.
 - Package split (D10): `core` (no effects-runtime coupling), `runtime`, `example` — create empty package objects/dirs so later leaves drop in.
 - Add `mill prePush` = compile + test.
 

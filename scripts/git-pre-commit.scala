@@ -1,6 +1,8 @@
 #!/usr/bin/env scala-cli
 
 //> using scala 3.3.4
+//> using options -Ysemanticdb
+//> using options -sourceroot:.
 //> using dep com.lihaoyi::os-lib:0.11.8
 
 import os._
@@ -13,7 +15,7 @@ object GitPreCommit:
 
     val buildTool =
       if os.exists(repoRoot / "build.sbt") then "sbt"
-      else if os.exists(repoRoot / "build.sc") then "mill"
+      else if os.exists(repoRoot / "build.mill") || os.exists(repoRoot / "build.sc") then "mill"
       else "scala-cli"
 
     val hasScalafmt = os.exists(repoRoot / ".scalafmt.conf")
@@ -86,4 +88,4 @@ object GitPreCommit:
             println("  mill mill.scalalib.contrib.ScalafixModule/fix")
         sys.exit(1)
 
-    println("✓ All pre-commit checks passed successfully!")
+    println("All pre-commit checks passed successfully!")
