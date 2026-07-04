@@ -106,3 +106,8 @@ hs_err_pid*
 /.idea/modules.xml
 /.idea/vcs.xml
 /arrowstep.iml
+
+# aider
+.aider*.history.md
+.aider.tags.cache*
+.aider*
