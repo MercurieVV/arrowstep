@@ -9,10 +9,11 @@ Input:
 
 Project setup:
 
-1. Read `AGENTS.md`, `/Users/viktorskalinins/.codex/RTK.md`, and `PROJECT.md`.
-2. Read `docs/DECISIONS.md` before any architectural change.
-3. Prefix shell commands with `rtk` whenever possible.
-4. Prefer committed scripts under `scripts/` over ad-hoc equivalents.
+@AGENTS.md
+@PROJECT.md
+@docs/DECISIONS.md
+1. Read `/Users/viktorskalinins/.codex/RTK.md`.
+2. Prefer committed scripts under `scripts/` over ad-hoc equivalents.
 
 Workflow:
 

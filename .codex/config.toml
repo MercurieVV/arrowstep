@@ -4,3 +4,15 @@ args = ["/Users/viktorskalinins/IdeaProjects/my/arrowstep"]
 startup_timeout_sec = 30
 tool_timeout_sec = 120
 enabled = true
+
+[mcp_servers.scala-semantic.tools.find_symbol]
+approval_mode = "approve"
+
+[mcp_servers.scala-semantic.tools.members]
+approval_mode = "approve"
+
+[mcp_servers.scala-semantic.tools.annotated_source]
+approval_mode = "approve"
+
+[mcp_servers.scala-semantic.tools.document_outline]
+approval_mode = "approve"
