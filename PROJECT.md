@@ -27,12 +27,12 @@ State: **planning / early scaffold** — design docs done, core code being built
 - **L0 wire protocol** — agent-facing bash contract: run `<program> --agent`; exit `0`=done,
   exit `2`=need input; exactly one JSON object on **stdout**, all human output on **stderr**.
   Answers written by agent to `.agents/answers.json`.
-- **L1 core** (pure, tagless-final, cats Arrows) — `Flow[F, A, B]` (opaque `Kleisli`, `ArrowChoice`);
+- **L1 core** (pure, tagless-final, cats Arrows) — `Kleisli[F, A, B]` with `ArrowChoice`;
   `Question`/`Answers`/`ValidAnswers`/`Problem`/`ProgramSays`; `Ask[F]` (the typed agent gap);
   `Dialogue.askUntilValid`.
 - **L2 runtime** (cats-effect edge) — `ReplayAsk` (agent leads), `LiveAsk` (program leads),
   `StubAsk` (tests); `AnswerLog`, `ProtocolJson`, `SessionStore`, `AdapterRegistry`, `AgentMain`.
-- **L3 consumer** — one arrow pipeline value = the whole dialogue spec, checked by the compiler.
+- **L3 consumer** — one `Kleisli` arrow pipeline value = the whole dialogue spec, checked by the compiler.
 
 `ValidAnswers` is opaque, constructible only by a `Validator` → unvalidated agent output physically
 cannot reach the effects stage (compile error, not convention).

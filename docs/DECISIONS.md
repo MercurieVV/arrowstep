@@ -27,10 +27,11 @@ are already answered here, including the alternatives that were considered and r
   configuration; switching agents between two `ask` steps is legal. Top CLIs ship preconfigured.
 - **G8 — Parallel agents, observable.** Multiple agents may run concurrently; the human must be
   able to follow all their output in a readable way.
-- **G9 — Highest abstraction level uses cats Arrows and custom abstract types.** (Explicit user
-  requirement.) The top level abstracts from all details: effect type (`F[_]`, tagless final),
-  agent identity, leadership, transport. Concrete `IO`, JSON, process-spawning appear only at the
-  runtime edge.
+- **G9 — Highest abstraction level uses cats Arrows without needless wrapper types.** The top
+  level abstracts from all details: effect type (`F[_]`, tagless final), agent identity,
+  leadership, transport. Concrete `IO`, JSON, process-spawning appear only at the runtime edge.
+  Prefer Cats' existing arrow types directly; introduce a project-specific type only when it adds
+  semantics beyond a type alias/wrapper.
 
 ---
 
@@ -138,11 +139,12 @@ Type-level enforcement: `ValidAnswers` is an opaque type constructible **only** 
 Unvalidated agent output physically cannot reach the apply/effects stage — that is a compile
 error, not a convention.
 
-### D8 — Core abstraction: cats Arrows over opaque types, tagless final
+### D8 — Core abstraction: cats Arrows, tagless final
 
-The top-level abstraction is `Flow[F[_], A, B]` — an opaque type over `cats.data.Kleisli`,
+The top-level abstraction is Cats' arrow surface directly: `cats.data.Kleisli[F, A, B]`,
 composed with arrow combinators (`>>>`, `&&&`, `***`). Effect type is abstract (`F[_]` with
-capability constraints); `cats.effect.IO` appears only in the runtime module and examples.
+capability constraints); `cats.effect.IO` appears only in the runtime module and examples. A
+project-specific `Flow` type is intentionally not introduced while it would only wrap `Kleisli`.
 
 *Why arrows here:* the flow is a pipeline of typed steps where composition order *is* the
 birdview; arrow combinators make that pipeline a first-class, inspectable value, and the
@@ -150,8 +152,9 @@ birdview; arrow combinators make that pipeline a first-class, inspectable value,
 `ask` (one agent round-trip) — the static-analysis benefit that motivated applicative/arrow style,
 without per-question ceremony.
 
-*Noted alternative:* plain for-comprehensions have the same semantics; arrows are the chosen
-surface per G9.
+*Fallback:* if direct `Kleisli` arrow syntax becomes too abstract or noisy at a call site, use a
+less abstract local type or helper there. Do not add a library-wide wrapper whose only job is to
+rename `Kleisli`.
 
 ### D9 — Observability: protocol on stdout, everything else visible elsewhere
 
@@ -182,5 +185,5 @@ Scala 3, scala-cli, dependencies: `cats-core`, `cats-effect`, `os-lib`, `ujson`.
 | Script executes agent inline, sharing parent session | forks/strands the parent transcript; headless permission prompts (D5) — refined into LiveAsk with own sessions |
 | Serialized continuations (Free monad persisted mid-chain) | closures don't serialize; replay instead (D3) |
 | fs2 as flow backbone | streams solve in-process streaming; this flow crosses process lifetimes |
-| Raw `Arrow` encoding without opaque wrapper | tuple-plumbing noise; opaque `Flow` + Kleisli gives lawful instances with readable surface (D8) |
+| Project-specific `Flow` wrapper over `Kleisli` | adds a new name without new semantics; use Cats arrows directly, or a narrower local helper if needed (D8) |
 | Custom TUI for parallel output | overkill; terminal multiplexers already exist (D9) |

@@ -13,8 +13,9 @@ Read [DECISIONS.md](DECISIONS.md) first for the why; this document is the how.
 
 ```
 ┌─ L3  consumer program (e.g. Setup.scala) ─────────────────────────────┐
-│   val flow: Flow[F, ProjectDir, Report] =                             │
-│     inspect >>> (Flow.id &&& askValidated) >>> makePlan >>> applyPlan │
+│   val dialogue: Kleisli[F, ProjectDir, Report] =                      │
+│     inspect >>> (Kleisli.ask[F, Detected] &&& askValidated)           │
+│       >>> makePlan >>> applyPlan                                      │
 └───────────────────────────────────────────────────────────────────────┘
 ┌─ L2  runtime (cats-effect edge) ──────────────────────────────────────┐
 │   ReplayAsk   — agent leads: answer log lookup | NeedInput + exit 2   │
@@ -23,7 +24,7 @@ Read [DECISIONS.md](DECISIONS.md) first for the why; this document is the how.
 │   ProtocolJson, AnswerLog, SessionStore, AdapterRegistry, AgentLogs   │
 └───────────────────────────────────────────────────────────────────────┘
 ┌─ L1  core (pure, tagless final, cats Arrows) ─────────────────────────┐
-│   Flow[F, A, B]   opaque Kleisli + ArrowChoice; >>> &&& *** first     │
+│   Kleisli[F, A, B] + ArrowChoice; >>> &&& *** first                   │
 │   Question / Answers / ValidAnswers / Problem / ProgramSays           │
 │   Ask[F]  (the agent gap, typed)   Validator[F]   Dialogue            │
 └───────────────────────────────────────────────────────────────────────┘
@@ -78,18 +79,20 @@ Stdout carries protocol JSON **only**; human-readable progress goes to stderr.
 
 ## 3. Core types (L1)
 
-### `Flow[F, A, B]` — the arrow
+### `Kleisli[F, A, B]` — the arrow
 
 ```scala
-opaque type Flow[F[_], -A, B] = Kleisli[F, A, B]
+import cats.data.Kleisli
+import cats.syntax.arrow.*
 ```
 
-One typed step of a dialogue pipeline. Lawful `ArrowChoice` instance (inherited from Kleisli, so
-the laws are cats' laws, not ours). Combinators: `>>>` (sequence), `&&&` (fan-out), `***`
-(parallel pairs), `first`/`second`, `Flow.id`, `Flow.lift` (pure function), `Flow.apply`
-(effectful function). Consumers compose the birdview from these; the composition *is* the
-specification and it is checked by the compiler: `applyPlan` cannot precede `askValidated`
-because the types don't connect.
+One typed step of a dialogue pipeline. `Kleisli` already has a lawful `ArrowChoice` instance, so
+there is no project-specific `Flow` wrapper. Combinators: `>>>` (sequence), `&&&` (fan-out),
+`***` (parallel pairs), `first`/`second`, `Kleisli.ask` (identity/input), `Kleisli.liftF` and
+`Kleisli` constructors for effectful steps, plus `Kleisli(a => Applicative[F].pure(b))` for pure
+steps. Consumers compose the birdview from these; the composition *is* the specification and it
+is checked by the compiler: `applyPlan` cannot precede `askValidated` because the types don't
+connect.
 
 ### The dialogue vocabulary
 
@@ -121,7 +124,7 @@ how do bytes travel" hides behind this one signature. The core never knows.
 
 ```scala
 def askUntilValid[F[_]: Monad](ask: Ask[F], validator: Validator[F])
-    : Flow[F, AskInput, ValidAnswers]
+    : Kleisli[F, AskInput, ValidAnswers]
 ```
 
 `ask >>> validate`, looping on rejection (re-asking with problems attached). The only factory of
@@ -165,15 +168,15 @@ any agent.
 
 ### Entry-point helper
 
-`AgentMain.run(flow, mode)` — parses `--agent`/`--autonomous`/flags, selects the Ask
-implementation, runs the flow, renders `ProgramSays` to stdout, maps it to the exit code. A
+`AgentMain.run(dialogue, mode)` — parses `--agent`/`--autonomous`/flags, selects the Ask
+implementation, runs the dialogue, renders `ProgramSays` to stdout, maps it to the exit code. A
 consumer's `main` is ~5 lines.
 
 ## 5. Parallel agents
 
 Independent question groups may consult different agents concurrently: `parMapN`/`parTraverse`
-over `ask` calls at L2 (the arrow layer is unchanged — `&&&` of flows whose runtime happens to
-parallelize). Observability per D9: each spawned agent gets a log file and a colored
+over `ask` calls at L2 (the arrow layer is unchanged — `&&&` of `Kleisli` values whose runtime
+happens to parallelize). Observability per D9: each spawned agent gets a log file and a colored
 `[adapter#n]` prefix on the interleaved stderr stream; `--panes` upgrades to tmux split panes
 when available.
 
@@ -185,20 +188,20 @@ when available.
 | every protocol state handled (exhaustive `ProgramSays`) | agent actually rerunning the command (it's a bash loop) |
 | message schema = ADT, JSON derived from it (no drift) | determinism contract of consumer steps (documented; test helper planned) |
 | unvalidated answers cannot reach effects (`ValidAnswers` opaque) | |
-| purity of decision steps (`Flow.lift` takes `A => B`, no effect possible) | |
+| purity of decision steps (pure functions are lifted into `Kleisli`) | |
 
 ## 7. Consumer example (the birdview, L3)
 
 ```scala
-val inspect      : Flow[IO, ProjectDir, Detected]
-val questionsFor : Flow[IO, Detected, AskInput]              // pure, Flow.lift
-val askValidated : Flow[IO, AskInput, ValidAnswers]          // Dialogue.askUntilValid(ask, validator)
-val makePlan     : Flow[IO, (Detected, ValidAnswers), Plan]  // pure, Flow.lift — deterministic by type
-val applyPlan    : Flow[IO, Plan, Report]                    // the ONLY world-writing step
+val inspect      : Kleisli[IO, ProjectDir, Detected]
+val questionsFor : Kleisli[IO, Detected, AskInput]              // pure function lifted to Kleisli
+val askValidated : Kleisli[IO, AskInput, ValidAnswers]          // Dialogue.askUntilValid(ask, validator)
+val makePlan     : Kleisli[IO, (Detected, ValidAnswers), Plan]  // pure function lifted to Kleisli
+val applyPlan    : Kleisli[IO, Plan, Report]                    // the ONLY world-writing step
 
-def flow(ask: Ask[IO]): Flow[IO, ProjectDir, Report] =
+def dialogue(ask: Ask[IO]): Kleisli[IO, ProjectDir, Report] =
   inspect
-    >>> (Flow.id[IO, Detected] &&& (questionsFor >>> askValidated))
+    >>> (Kleisli.ask[IO, Detected] &&& (questionsFor >>> askValidated))
     >>> makePlan
     >>> applyPlan
 ```
