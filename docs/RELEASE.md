@@ -72,8 +72,8 @@ scala-cli --power publish . \
   --vcs github:MercurieVV/arrowstep \
   --developer 'MercurieVV|MercurieVV|https://github.com/MercurieVV' \
   --description 'Typed, compiler-checked, replayable dialogues between Scala programs and coding agents.' \
-  --user "$SONATYPE_USERNAME" \
-  --password "$SONATYPE_PASSWORD" \
+  --user "value:$SONATYPE_USERNAME" \
+  --password "value:$SONATYPE_PASSWORD" \
   --secret-key env:PGP_SECRET_KEY \
   --secret-key-password env:PGP_SECRET_KEY_PASSWORD \
   --with-sources \
