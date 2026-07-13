@@ -10,7 +10,7 @@ skeleton in progress**.
       `ProgramSays`, `AskInput`
 - [x] `core.Ask`, `core.Validator` (+ basic choice/free-text validator), `core.Dialogue.askUntilValid`
 - [x] `runtime.AnswerLog` (file-backed), `runtime.StubAsk`
-- [ ] `runtime.ReplayAsk`
+- [x] `runtime.ReplayAsk`
 - [x] `runtime.ProtocolJson` (render `ProgramSays` to wire JSON)
 - [x] `runtime.SessionStore`, `runtime.AgentAdapter`/registry types, `LiveAsk` stub
 - [x] Example consumer flow + munit test executing the flow with `StubAsk`
@@ -18,9 +18,9 @@ skeleton in progress**.
 
 ## Phase 1 — Protocol hardening
 - [ ] JSON codecs derived/centralized for every L0 message; golden-file tests for wire shapes
-- [ ] `AgentMain` entry-point helper: flag parsing (`--agent`, `--answers`, `--fresh`,
+- [x] `AgentMain` entry-point helper: flag parsing (`--agent`, `--answers`, `--fresh`,
       `--resume-session`, `--adapter`), `ProgramSays → exit code`, stdout/stderr discipline
-- [ ] Inline `--answers` accepted and persisted into the answer log (D2)
+- [x] Inline `--answers` accepted and persisted into the answer log (D2)
 - [ ] `Rejected` loop end-to-end: validator problems re-emitted with offending questions
 
 ## Phase 2 — Replay completeness

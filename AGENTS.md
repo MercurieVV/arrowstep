@@ -8,6 +8,11 @@ directive, so **read these two files at the start of every task** — they are t
 
 Then read `docs/DECISIONS.md` before proposing any architectural change.
 
+## Response style
+
+- Be terse. Don't restate the task or narrate a plan before editing. Output the edit/diff directly.
+- No summary after the edit unless asked.
+
 ## Non-negotiables
 
 - Pure FP; no `var`/`null`/`throw`; errors as `Either`/`Try`/effects. No `unsafeRunSync`.

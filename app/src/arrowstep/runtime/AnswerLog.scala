@@ -40,7 +40,7 @@ object AnswerLog:
   private def path(root: os.Path): os.Path =
     root / AgentsDir / AnswersFile
 
-  private def parse(raw: String): Option[Answers] =
+  def parse(raw: String): Option[Answers] =
     Try(ujson.read(raw)).toOption.flatMap {
       case ujson.Obj(values) =>
         values.toList
@@ -52,7 +52,7 @@ object AnswerLog:
       case _ => None
     }
 
-  private def render(a: Answers): String =
+  def render(a: Answers): String =
     ujson.Obj.from(a.toMap.toList.sortBy(_._1).map { case (id, answer) =>
       id -> ujson.Str(answer)
     }).render()
