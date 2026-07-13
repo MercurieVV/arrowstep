@@ -1,20 +1,20 @@
 # Roadmap
 
-Phases are ordered so that every phase ends with something runnable. Detailed per-phase tasks,
-signatures and acceptance criteria live in [PLAN.md](PLAN.md). Current state: **planning — no
-code yet by explicit decision**; docs only.
+Phases are ordered so that every phase ends with something runnable. Current state: **Phase 0
+skeleton in progress**.
 
 ## Phase 0 — Skeleton
-- [ ] Project scaffold (scala-cli, Scala 3, cats-core / cats-effect / os-lib / ujson)
-- [ ] `core.Flow` — opaque Kleisli arrow, `>>>` `&&&` `***` `first`, `ArrowChoice` instance
-- [ ] `core` vocabulary — `Question`, `QuestionKind`, `Answers`, `ValidAnswers`, `Problem`,
+- [x] Project scaffold (scala-cli, Scala 3, cats-core / cats-effect / os-lib / ujson)
+- [x] `core.Flow` — opaque Kleisli arrow, `>>>` `&&&` `***` `first`, `ArrowChoice` instance
+- [x] `core` vocabulary — `Question`, `QuestionKind`, `Answers`, `ValidAnswers`, `Problem`,
       `ProgramSays`, `AskInput`
-- [ ] `core.Ask`, `core.Validator` (+ basic choice/free-text validator), `core.Dialogue.askUntilValid`
-- [ ] `runtime.AnswerLog` (file-backed), `runtime.ReplayAsk`, `runtime.StubAsk`
-- [ ] `runtime.ProtocolJson` (render `ProgramSays` to wire JSON)
-- [ ] `runtime.SessionStore`, `runtime.AgentAdapter`/registry types, `LiveAsk` stub
-- [ ] Example consumer flow + munit test executing the flow with `StubAsk`
-- [x] Design docs (DESIGN.md, DECISIONS.md, PLAN.md, this file)
+- [x] `core.Ask`, `core.Validator` (+ basic choice/free-text validator), `core.Dialogue.askUntilValid`
+- [x] `runtime.AnswerLog` (file-backed), `runtime.StubAsk`
+- [ ] `runtime.ReplayAsk`
+- [x] `runtime.ProtocolJson` (render `ProgramSays` to wire JSON)
+- [x] `runtime.SessionStore`, `runtime.AgentAdapter`/registry types, `LiveAsk` stub
+- [x] Example consumer flow + munit test executing the flow with `StubAsk`
+- [x] Design docs (DESIGN.md, DECISIONS.md, this file)
 
 ## Phase 1 — Protocol hardening
 - [ ] JSON codecs derived/centralized for every L0 message; golden-file tests for wire shapes
@@ -31,7 +31,7 @@ code yet by explicit decision**; docs only.
 - [ ] Answer-log hygiene: stale answers for removed questions, `--reset`
 
 ## Phase 3 — Program-led mode (LiveAsk)
-- [ ] `AdapterRegistry`: load `.agents/adapters.json`, ship presets (claude, gemini; PRs welcome)
+- [x] `AdapterRegistry`: load `.agents/adapters.json`, ship presets (claude, gemini; PRs welcome)
 - [ ] `LiveAsk` implementation: template expansion, process spawn, stream to stderr + log file,
       final-JSON parse, session persistence (D5, D6)
 - [ ] Session lifecycle: `--fresh`, `--resume-session`, purpose-scoped ids in `sessions.json`
