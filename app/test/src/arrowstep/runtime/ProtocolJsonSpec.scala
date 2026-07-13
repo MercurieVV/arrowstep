@@ -23,7 +23,12 @@ final class ProtocolJsonSpec extends munit.FunSuite:
 
     assertEquals(
       rendered,
-      """{"status":"need-input","context":"Configuring Scala project ./x","questions":[{"id":"web-server","text":"Enable Web Server?","kind":"choice","allowed":["yes","no"],"default":"no","current":"no","context":null}]}"""
+      golden("need-input.json")
+    )
+
+    assertEquals(
+      ProtocolJson.parse(rendered),
+      Right(ProgramSays.NeedInput(Some("Configuring Scala project ./x"), List(question)))
     )
   }
 
@@ -44,6 +49,7 @@ final class ProtocolJsonSpec extends munit.FunSuite:
       )
     )
 
+    assertEquals(rendered.render(), golden("rejected.json"))
     assertEquals(rendered("status").str, "rejected")
     assertEquals(rendered("problems")(0)("questionId").str, "module-name")
     assertEquals(rendered("problems")(0)("message").str, "must not be empty")
@@ -52,6 +58,15 @@ final class ProtocolJsonSpec extends munit.FunSuite:
     assertEquals(rendered("questions")(0)("default"), ujson.Null)
     assertEquals(rendered("questions")(0)("current").str, "")
     assertEquals(rendered("questions")(0)("context").str, "Use a Scala identifier.")
+    assertEquals(
+      ProtocolJson.parse(rendered.render()),
+      Right(
+        ProgramSays.Rejected(
+          List(Problem("module-name", "must not be empty")),
+          List(question)
+        )
+      )
+    )
   }
 
   test("renders Done with consumer JSON passed through") {
@@ -59,6 +74,30 @@ final class ProtocolJsonSpec extends munit.FunSuite:
 
     assertEquals(
       ProtocolJson.render(ProgramSays.Done(result)),
-      """{"status":"done","result":{"ok":true,"path":"build.sbt"}}"""
+      golden("done.json")
+    )
+    assertEquals(ProtocolJson.parse(golden("done.json")), Right(ProgramSays.Done(result)))
+  }
+
+  test("renders and parses answers through the centralized protocol codec") {
+    val answers = arrowstep.core.Answers(Map("lang" -> "scala", "build" -> "mill"))
+
+    assertEquals(ProtocolJson.renderAnswers(answers), """{"build":"mill","lang":"scala"}""")
+    assertEquals(
+      ProtocolJson.parseAnswers("""{"lang":"scala","build":"mill"}""").map(_.toMap),
+      Some(answers.toMap)
+    )
+    assertEquals(ProtocolJson.parseAnswers("""{"lang":1}"""), None)
+  }
+
+  test("rejects malformed protocol JSON") {
+    assertEquals(ProtocolJson.parse("{"), Left("invalid JSON"))
+    assertEquals(ProtocolJson.parse("""{"status":"later"}"""), Left("unknown status: later"))
+    assertEquals(
+      ProtocolJson.parse("""{"status":"need-input","questions":{}}"""),
+      Left("questions must be an array")
     )
   }
+
+  private def golden(name: String): String =
+    scala.io.Source.fromResource("arrowstep/runtime/" + name).mkString.trim

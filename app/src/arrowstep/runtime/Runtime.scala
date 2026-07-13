@@ -1,6 +1,6 @@
 package arrowstep.runtime
 
-import arrowstep.core.{Answers, Ask, AskInput, ProgramSays, Question}
+import arrowstep.core.{Answers, Ask, AskInput, Dialogue, Flow, Problem, ProgramSays, Question, Validator, ValidAnswers}
 import cats.effect.Sync
 import cats.syntax.all.*
 
@@ -141,6 +141,11 @@ final case class ReplayNeedInput(input: AskInput)
   def programSays: ProgramSays[Nothing] =
     ProgramSays.NeedInput(input.context, input.questions)
 
+final case class ReplayRejected(problems: List[Problem], input: AskInput)
+    extends RuntimeException("Replay answer log contains invalid answers for the requested questions"):
+  def programSays: ProgramSays[Nothing] =
+    ProgramSays.Rejected(problems, input.questions)
+
 final class ReplayAsk[F[_]: Sync](root: os.Path) extends Ask[F]:
 
   def apply(input: AskInput): F[Answers] =
@@ -157,6 +162,23 @@ object ReplayAsk:
 
   def apply[F[_]: Sync](root: os.Path): ReplayAsk[F] =
     new ReplayAsk[F](root)
+
+  def askUntilValid[F[_]: Sync](validator: Validator[F]): F[Flow[F, AskInput, ValidAnswers]] =
+    Sync[F].delay(os.pwd).map(root => askUntilValid(root, validator))
+
+  def askUntilValid[F[_]: Sync](root: os.Path, validator: Validator[F]): Flow[F, AskInput, ValidAnswers] =
+    Flow.apply { (input: AskInput) =>
+      AnswerLog.read[F](root).flatMap { log =>
+        val missingQuestions = missing(input.questions, log)
+        if missingQuestions.nonEmpty then Sync[F].raiseError(ReplayNeedInput(input.copy(questions = missingQuestions)))
+        else
+          validator.validate(input.questions, log).flatMap {
+            case Right(valid) => Sync[F].pure(valid)
+            case Left(problems) =>
+              Sync[F].raiseError(ReplayRejected(problems, Dialogue.reAsk(input, problems)))
+          }
+      }
+    }
 
   private def missing(questions: List[Question], answers: Answers): List[Question] =
     questions.filter(q => answers.get(q.id).isEmpty)
@@ -234,10 +256,13 @@ object AgentMain:
 
   def run[F[_]: Sync](program: F[ProgramSays[ujson.Value]]): F[Outcome] =
     program
-      .map(render)
-      .recover { case need: ReplayNeedInput =>
-        render(need.programSays)
-      }
+        .map(render)
+        .recover { case need: ReplayNeedInput =>
+          render(need.programSays)
+        }
+        .recover { case rejected: ReplayRejected =>
+          render(rejected.programSays)
+        }
 
   def render(programSays: ProgramSays[ujson.Value]): Outcome =
     Outcome(

@@ -4,8 +4,6 @@ import arrowstep.core.Answers
 import cats.effect.Sync
 import cats.syntax.all.*
 
-import scala.util.Try
-
 object AnswerLog:
 
   private val AgentsDir = ".agents"
@@ -41,18 +39,7 @@ object AnswerLog:
     root / AgentsDir / AnswersFile
 
   def parse(raw: String): Option[Answers] =
-    Try(ujson.read(raw)).toOption.flatMap {
-      case ujson.Obj(values) =>
-        values.toList
-          .traverse {
-            case (id, ujson.Str(answer)) => Some(id -> answer)
-            case _                       => None
-          }
-          .map(entries => Answers(entries.toMap))
-      case _ => None
-    }
+    ProtocolJson.parseAnswers(raw)
 
   def render(a: Answers): String =
-    ujson.Obj.from(a.toMap.toList.sortBy(_._1).map { case (id, answer) =>
-      id -> ujson.Str(answer)
-    }).render()
+    ProtocolJson.renderAnswers(a)

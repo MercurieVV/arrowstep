@@ -17,14 +17,14 @@ skeleton in progress**.
 - [x] Design docs (DESIGN.md, DECISIONS.md, this file)
 
 ## Phase 1 — Protocol hardening
-- [ ] JSON codecs derived/centralized for every L0 message; golden-file tests for wire shapes
+- [x] JSON codecs derived/centralized for every L0 message; golden-file tests for wire shapes
 - [x] `AgentMain` entry-point helper: flag parsing (`--agent`, `--answers`, `--fresh`,
       `--resume-session`, `--adapter`), `ProgramSays → exit code`, stdout/stderr discipline
 - [x] Inline `--answers` accepted and persisted into the answer log (D2)
-- [ ] `Rejected` loop end-to-end: validator problems re-emitted with offending questions
+- [x] `Rejected` loop end-to-end: validator problems re-emitted with offending questions
 
 ## Phase 2 — Replay completeness
-- [ ] `Cached` step helper: run-once effects whose results are stored in the answer log
+- [x] `Cached` step helper: run-once effects whose results are stored in the answer log
       (Maven version lookups etc. — the D3 determinism requirement, made ergonomic)
 - [ ] Replay determinism test-kit: run a flow twice against the same log, assert identical
       question sequences

@@ -2,6 +2,7 @@ package arrowstep.runtime
 
 import arrowstep.core.{Answers, AskInput, Dialogue, ProgramSays, Question, QuestionKind, Validator}
 import cats.effect.IO
+import cats.effect.Ref
 
 final class RuntimeSpec extends munit.CatsEffectSuite:
 
@@ -62,6 +63,41 @@ final class RuntimeSpec extends munit.CatsEffectSuite:
     }
   }
 
+  test("Cached.string computes once and stores the value in the answer log") {
+    withTempDir { root =>
+      for
+        counter <- Ref[IO].of(0)
+        first <- Cached.string[IO](root, CacheKey("scala-version"))(
+          counter.updateAndGet(_ + 1).map(i => "3.8." + i.toString)
+        )
+        second <- Cached.string[IO](root, CacheKey("scala-version"))(
+          counter.updateAndGet(_ + 1).map(i => "3.8." + i.toString)
+        )
+        count <- counter.get
+        answers <- AnswerLog.read[IO](root)
+      yield
+        assertEquals(first, "3.8.1")
+        assertEquals(second, "3.8.1")
+        assertEquals(count, 1)
+        assertEquals(answers.get("_cache.scala-version"), Some("3.8.1"))
+    }
+  }
+
+  test("Cached.flow exposes cached effects as a Flow step") {
+    withTempDir { root =>
+      val cached = Cached.flow[IO, String](root, CacheKey("module-name")) { module =>
+        IO.pure(module.toUpperCase)
+      }
+
+      for
+        first <- cached.run("core")
+        second <- cached.run("ignored")
+      yield
+        assertEquals(first, "CORE")
+        assertEquals(second, "CORE")
+    }
+  }
+
   test("ReplayAsk returns the answer log when every requested question is answered") {
     withTempDir { root =>
       val answers = Answers(Map("lang" -> "scala", "extra" -> "kept"))
@@ -97,6 +133,27 @@ final class RuntimeSpec extends munit.CatsEffectSuite:
         _ <- AnswerLog.write[IO](root, Answers(Map("lang" -> "scala")))
         valid <- Dialogue.askUntilValid(ReplayAsk[IO](root), Validator.basic[IO]).run(input)
       yield assertEquals(valid.toMap, Map("lang" -> "scala"))
+    }
+  }
+
+  test("ReplayAsk validating flow rejects invalid logged answers with offending questions") {
+    withTempDir { root =>
+      for
+        _ <- AnswerLog.write[IO](root, Answers(Map("lang" -> "ruby")))
+        result <- ReplayAsk.askUntilValid[IO](root, Validator.basic[IO]).run(input).attempt
+      yield
+        val says = result match
+          case Left(rejected: ReplayRejected) => rejected.programSays
+          case Left(other)                    => ProgramSays.Done(other.getMessage)
+          case Right(_)                       => ProgramSays.Done("accepted")
+
+        assertEquals(
+          says,
+          ProgramSays.Rejected(
+            List(arrowstep.core.Problem("lang", "'ruby' not in [scala, java]")),
+            List(question.copy(context = Some("'ruby' not in [scala, java]")))
+          )
+        )
     }
   }
 
@@ -153,6 +210,26 @@ final class RuntimeSpec extends munit.CatsEffectSuite:
         outcome.stdout,
         """{"status":"need-input","context":"Project setup","questions":[{"id":"lang","text":"Language?","kind":"choice","allowed":["scala","java"],"default":null,"current":null,"context":null}]}"""
       )
+    }
+  }
+
+  test("AgentMain renders replay validation failures as Rejected protocol stdout") {
+    withTempDir { root =>
+      for
+        _ <- AnswerLog.write[IO](root, Answers(Map("lang" -> "ruby")))
+        outcome <- AgentMain.run[IO](
+          ReplayAsk
+            .askUntilValid[IO](root, Validator.basic[IO])
+            .run(input)
+            .map(_ => ProgramSays.Done(ujson.Obj("ok" -> true)))
+        )
+      yield
+        assertEquals(outcome.exitCode, 2)
+        assertEquals(outcome.stderr, "")
+        assertEquals(
+          outcome.stdout,
+          """{"status":"rejected","problems":[{"questionId":"lang","message":"'ruby' not in [scala, java]"}],"questions":[{"id":"lang","text":"Language?","kind":"choice","allowed":["scala","java"],"default":null,"current":null,"context":"'ruby' not in [scala, java]"}]}"""
+        )
     }
   }
 

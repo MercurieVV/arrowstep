@@ -75,7 +75,7 @@ object Dialogue:
   /** Build the next `AskInput`: keep only the questions that drew a problem, fold each problem's
     * message into that question's `context`, and summarise all problems at the input level.
     */
-  private def reAsk(input: AskInput, problems: List[Problem]): AskInput =
+  def reAsk(input: AskInput, problems: List[Problem]): AskInput =
     val byId = problems.groupBy(_.questionId)
     val offending = input.questions.flatMap { q =>
       byId.get(q.id).map { ps =>
