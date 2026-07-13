@@ -52,8 +52,8 @@ skeleton in progress**.
 
 ## Phase 6 — Release
 - [ ] Publish to Maven Central (`scala-cli publish` or migrate to sbt if cross-building demands)
-- [ ] README quickstart; mdoc-checked docs
-- [ ] Version/compat policy for the wire protocol (L0 is a spec other languages could implement)
+- [x] README quickstart; mdoc-checked docs
+- [x] Version/compat policy for the wire protocol (L0 is a spec other languages could implement)
 
 ## Open questions (deliberately deferred)
 - Conditional dialogues: answer → new question round. Replay supports it naturally (the flow just

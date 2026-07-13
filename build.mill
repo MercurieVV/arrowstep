@@ -51,6 +51,7 @@ object app extends ScalaModule {
 
 object docs extends ScalaModule {
   def scalaVersion = "3.3.4"
+  def mainClass = Some("docs.DocsMain")
   def scalacOptions = semanticDbOptions
   def mvnDeps = Seq(mvn"org.scalameta::mdoc:2.9.0")
 }

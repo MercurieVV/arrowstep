@@ -2,13 +2,16 @@
 
 This documentation is compiled and type-checked using **mdoc**.
 
-## Scala 3 Code Example
+## Checked Snippet
 
 ```scala mdoc
-val message = "Hello from Scala 3 type-checked docs!"
-println(message)
+val protocolStatuses = List("need-input", "rejected", "done")
+protocolStatuses.contains("done")
 ```
 
-## Release
+## More
 
-Publishing metadata and release commands are documented in [RELEASE.md](RELEASE.md).
+- [Design](DESIGN.md)
+- [Decisions](DECISIONS.md)
+- [Wire protocol](WIRE_PROTOCOL.md)
+- [Release](RELEASE.md)
