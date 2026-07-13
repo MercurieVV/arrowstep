@@ -43,5 +43,34 @@ final class AnswerLogSpec extends munit.CatsEffectSuite:
     assertEquals(updated.toMap, Map("lang" -> "scala", "build" -> "mill", "test" -> "munit"))
   }
 
+  test("retainActive removes stale question answers and keeps cached values") {
+    val answers = Answers(Map("lang" -> "scala", "old" -> "stale", "_cache.scala-version" -> "3.8.4"))
+    val retained = AnswerLog.retainActive(answers, Set("lang"))
+
+    assertEquals(retained.toMap, Map("lang" -> "scala", "_cache.scala-version" -> "3.8.4"))
+  }
+
+  test("pruneStale writes retained active answers back to disk") {
+    withTempDir { root =>
+      for
+        _ <- AnswerLog.write[IO](root, Answers(Map("lang" -> "scala", "old" -> "stale")))
+        retained <- AnswerLog.pruneStale[IO](root, Set("lang"))
+        read <- AnswerLog.read[IO](root)
+      yield
+        assertEquals(retained.toMap, Map("lang" -> "scala"))
+        assertEquals(read.toMap, Map("lang" -> "scala"))
+    }
+  }
+
+  test("reset clears the persisted answer log") {
+    withTempDir { root =>
+      for
+        _ <- AnswerLog.write[IO](root, Answers(Map("lang" -> "scala")))
+        _ <- AnswerLog.reset[IO](root)
+        read <- AnswerLog.read[IO](root)
+      yield assertEquals(read.toMap, Map.empty[String, String])
+    }
+  }
+
   private def withTempDir(test: os.Path => IO[Unit]): IO[Unit] =
     IO(os.temp.dir(prefix = "arrowstep-answer-log-")).bracket(test)(root => IO(os.remove.all(root)))

@@ -26,19 +26,19 @@ skeleton in progress**.
 ## Phase 2 — Replay completeness
 - [x] `Cached` step helper: run-once effects whose results are stored in the answer log
       (Maven version lookups etc. — the D3 determinism requirement, made ergonomic)
-- [ ] Replay determinism test-kit: run a flow twice against the same log, assert identical
+- [x] Replay determinism test-kit: run a flow twice against the same log, assert identical
       question sequences
-- [ ] Answer-log hygiene: stale answers for removed questions, `--reset`
+- [x] Answer-log hygiene: stale answers for removed questions, `--reset`
 
 ## Phase 3 — Program-led mode (LiveAsk)
 - [x] `AdapterRegistry`: load `.agents/adapters.json`, ship presets (claude, gemini; PRs welcome)
-- [ ] `LiveAsk` implementation: template expansion, process spawn, stream to stderr + log file,
+- [x] `LiveAsk` implementation: template expansion, process spawn, stream to stderr + log file,
       final-JSON parse, session persistence (D5, D6)
-- [ ] Session lifecycle: `--fresh`, `--resume-session`, purpose-scoped ids in `sessions.json`
-- [ ] Context briefs: `AskInput.context` rendered into the prompt for fresh sessions
+- [x] Session lifecycle: `--fresh`, `--resume-session`, purpose-scoped ids in `sessions.json`
+- [x] Context briefs: `AskInput.context` rendered into the prompt for fresh sessions
 
 ## Phase 4 — Parallelism & observability
-- [ ] Parallel `ask` combinator (`parAsk` over independent question groups / multiple adapters)
+- [x] Parallel `ask` combinator (`parAsk` over independent question groups / multiple adapters)
 - [ ] Prefixed interleaved streaming (`[claude#2]`, per-agent color) as default display
 - [ ] `--panes`: tmux split-window integration when `$TMUX` is set
 - [ ] Log-file layout & rotation under `.agents/logs/`

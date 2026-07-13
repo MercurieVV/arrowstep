@@ -133,8 +133,12 @@ object SessionStore:
 final case class LiveAskConfig(
     adapter: AgentAdapter,
     purpose: AgentPurpose,
-    root: os.Path
+    root: os.Path,
+    fresh: Boolean,
+    resumeSession: Option[SessionId]
 )
+
+final case class AgentProcessResult(exitCode: Int, stdout: String, stderr: String)
 
 final case class ReplayNeedInput(input: AskInput)
     extends RuntimeException("Replay answer log is missing answers for the requested questions"):
@@ -183,18 +187,106 @@ object ReplayAsk:
   private def missing(questions: List[Question], answers: Answers): List[Question] =
     questions.filter(q => answers.get(q.id).isEmpty)
 
-final class LiveAsk[F[_]: Sync](config: LiveAskConfig) extends Ask[F]:
+final class LiveAsk[F[_]: Sync](
+    config: LiveAskConfig,
+    process: (List[String], os.Path, os.Path) => F[AgentProcessResult]
+) extends Ask[F]:
 
   def apply(input: AskInput): F[Answers] =
-    Sync[F].raiseError(
-      new UnsupportedOperationException(
-        "LiveAsk process execution is planned for Phase 3; Phase 0 only defines its runtime boundary."
+    for
+      prompt <- Sync[F].pure(LiveAsk.prompt(input))
+      session <- LiveAsk.session[F](config)
+      command <- Sync[F].fromEither(LiveAsk.command(config.adapter, prompt, session).leftMap(new RuntimeException(_)))
+      result <- process(command, config.root, LiveAsk.logFile(config.root, config.purpose))
+      response <- Sync[F].fromEither(LiveAsk.response(result))
+      _ <- AnswerLog.read[F](config.root).flatMap(existing =>
+        AnswerLog.write[F](config.root, AnswerLog.merge(existing, response.answers))
       )
-    )
+      _ <- response.sessionId.fold(Sync[F].unit)(SessionStore.put[F](config.root, config.purpose, _))
+    yield response.answers
 
 object LiveAsk:
+  private val PromptToken = "{prompt}"
+  private val SessionToken = "{session}"
+  private val AgentsDir = ".agents"
+  private val LogsDir = "logs"
+
+  private final case class Response(answers: Answers, sessionId: Option[SessionId])
+
   def apply[F[_]: Sync](config: LiveAskConfig): LiveAsk[F] =
-    new LiveAsk[F](config)
+    new LiveAsk[F](config, runProcess[F])
+
+  def withProcess[F[_]: Sync](
+      config: LiveAskConfig
+  )(process: (List[String], os.Path, os.Path) => F[AgentProcessResult]): LiveAsk[F] =
+    new LiveAsk[F](config, process)
+
+  private def session[F[_]: Sync](config: LiveAskConfig): F[Option[SessionId]] =
+    config.resumeSession match
+      case some @ Some(_) => Sync[F].pure(some)
+      case None           => if config.fresh then Sync[F].pure(None) else SessionStore.get[F](config.root, config.purpose)
+
+  private def command(adapter: AgentAdapter, prompt: String, session: Option[SessionId]): Either[String, List[String]] =
+    val template = session.fold(adapter.fresh)(_ => adapter.resume)
+    val rendered = template.map(part => expand(part, prompt, session))
+    Either.cond(rendered.nonEmpty, rendered, "agent adapter command must not be empty")
+
+  private def expand(part: String, prompt: String, session: Option[SessionId]): String =
+    part
+      .replace(PromptToken, prompt)
+      .replace(SessionToken, session.fold("")(_.value))
+
+  private def response(result: AgentProcessResult): Either[Throwable, Response] =
+    Either.cond(result.exitCode === 0, result, new RuntimeException("agent process exited with " + result.exitCode.toString))
+      .flatMap(result => parseResponse(result.stdout).left.map(new RuntimeException(_)))
+
+  private def parseResponse(raw: String): Either[String, Response] =
+    finalJson(raw).flatMap { json =>
+      Try(ujson.read(json)).toEither.left.map(_ => "invalid agent response JSON").flatMap {
+        case ujson.Obj(fields) if fields.contains("answers") =>
+          fields.get("answers").flatMap(value => AnswerLog.parse(value.render())) match
+            case Some(answers) => Right(Response(answers, sessionId(fields)))
+            case None          => Left("answers must be a JSON object with string values")
+        case value =>
+          AnswerLog.parse(value.render()).map(Response(_, None)).toRight("agent response must be answers JSON")
+      }
+    }
+
+  private def finalJson(raw: String): Either[String, String] =
+    raw.linesIterator.toList.reverse.find(_.trim.nonEmpty).map(_.trim).toRight("agent response was empty")
+
+  private def sessionId(fields: collection.Map[String, ujson.Value]): Option[SessionId] =
+    stringValue(fields.get("sessionId")).orElse(stringValue(fields.get("session_id"))).map(SessionId(_))
+
+  private def stringValue(value: Option[ujson.Value]): Option[String] =
+    value.collect { case ujson.Str(text) => text }
+
+  private def prompt(input: AskInput): String =
+    val context = input.context.fold("")(value => "Context:\n" + value + "\n\n")
+    val questions = input.questions.map(questionPrompt).mkString("\n")
+    context + "Answer these questions. Return exactly one JSON object whose keys are question ids and values are strings.\n" + questions
+
+  private def questionPrompt(question: Question): String =
+    val kind = question.kind match
+      case arrowstep.core.QuestionKind.FreeText        => "free-text"
+      case arrowstep.core.QuestionKind.Choice(allowed) => "choice: " + allowed.mkString(", ")
+    "- " + question.id + ": " + question.text + " (" + kind + ")"
+
+  private def logFile(root: os.Path, purpose: AgentPurpose): os.Path =
+    root / AgentsDir / LogsDir / (purpose.value + ".log")
+
+  private def runProcess[F[_]: Sync](
+      command: List[String],
+      root: os.Path,
+      logFile: os.Path
+  ): F[AgentProcessResult] =
+    Sync[F].blocking {
+      val result = os.proc(command).call(cwd = root, stdout = os.Pipe, stderr = os.Pipe, check = false)
+      val stderr = result.err.text()
+      os.write.append(logFile, stderr, createFolders = true)
+      if stderr.nonEmpty then Console.err.print(stderr)
+      AgentProcessResult(result.exitCode, result.out.text(), stderr)
+    }
 
 object Runtime:
   val defaultAdapters: AdapterRegistry =
@@ -204,6 +296,7 @@ final case class AgentArgs(
     agent: Boolean,
     inlineAnswers: Option[Answers],
     fresh: Boolean,
+    reset: Boolean,
     resumeSession: Option[SessionId],
     adapter: Option[String]
 )
@@ -211,7 +304,7 @@ final case class AgentArgs(
 object AgentArgs:
 
   val empty: AgentArgs =
-    AgentArgs(agent = false, inlineAnswers = None, fresh = false, resumeSession = None, adapter = None)
+    AgentArgs(agent = false, inlineAnswers = None, fresh = false, reset = false, resumeSession = None, adapter = None)
 
   def parse(args: List[String]): Either[String, AgentArgs] =
     parseLoop(args, empty)
@@ -223,6 +316,8 @@ object AgentArgs:
         parseLoop(tail, parsed.copy(agent = true))
       case "--fresh" :: tail =>
         parseLoop(tail, parsed.copy(fresh = true))
+      case "--reset" :: tail =>
+        parseLoop(tail, parsed.copy(reset = true))
       case "--answers" :: raw :: tail =>
         AnswerLog.parse(raw) match
           case Some(answers) => parseLoop(tail, parsed.copy(inlineAnswers = Some(answers)))
@@ -252,7 +347,7 @@ object AgentMain:
       case Left(message) =>
         Sync[F].pure(Outcome("", message, 2))
       case Right(parsed) =>
-        persistInlineAnswers(root, parsed) *> run(program(parsed))
+        prepareAnswerLog(root, parsed) *> run(program(parsed))
 
   def run[F[_]: Sync](program: F[ProgramSays[ujson.Value]]): F[Outcome] =
     program
@@ -270,6 +365,10 @@ object AgentMain:
       stderr = "",
       exitCode = programSays.exitCode
     )
+
+  private def prepareAnswerLog[F[_]: Sync](root: os.Path, args: AgentArgs): F[Unit] =
+    val reset = if args.reset then AnswerLog.reset[F](root) else Sync[F].unit
+    reset *> persistInlineAnswers(root, args)
 
   private def persistInlineAnswers[F[_]: Sync](root: os.Path, args: AgentArgs): F[Unit] =
     args.inlineAnswers.fold(Sync[F].unit) { inline =>

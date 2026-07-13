@@ -1,6 +1,6 @@
 package arrowstep.runtime
 
-import arrowstep.core.{Answers, AskInput, Dialogue, ProgramSays, Question, QuestionKind, Validator}
+import arrowstep.core.{Answers, AskInput, Dialogue, Flow, ProgramSays, Question, QuestionKind, Validator}
 import cats.effect.IO
 import cats.effect.Ref
 
@@ -157,6 +157,48 @@ final class RuntimeSpec extends munit.CatsEffectSuite:
     }
   }
 
+  test("ReplayDeterminism captures identical question sequences across replay runs") {
+    withTempDir { root =>
+      for
+        check <- ReplayDeterminism.check[IO, AskInput, arrowstep.core.ValidAnswers](
+          root,
+          Answers(Map("lang" -> "scala")),
+          input
+        )(ask => Dialogue.askUntilValid(ask, Validator.basic[IO]))
+      yield
+        assert(check.deterministic)
+        assertEquals(check.differingIndex, None)
+        assertEquals(check.first.questionSequences, List(List(question)))
+        assertEquals(check.second.questionSequences, List(List(question)))
+    }
+  }
+
+  test("ReplayDeterminism reports the first changed question sequence") {
+    withTempDir { root =>
+      val build = Question("build", "Build tool?", QuestionKind.Choice(List("mill", "sbt")), None, None, None)
+
+      for
+        counter <- Ref[IO].of(0)
+        check <- ReplayDeterminism.check[IO, Unit, Answers](
+          root,
+          Answers(Map("lang" -> "scala", "build" -> "mill")),
+          ()
+        ) { ask =>
+          Flow.apply { (_: Unit) =>
+            counter.updateAndGet(_ + 1).flatMap { run =>
+              val selected = if run == 1 then question else build
+              ask(AskInput(List(selected), None))
+            }
+          }
+        }
+      yield
+        assert(!check.deterministic)
+        assertEquals(check.differingIndex, Some(0))
+        assertEquals(check.first.questionSequences, List(List(question)))
+        assertEquals(check.second.questionSequences, List(List(build)))
+    }
+  }
+
   test("AgentArgs parses supported Phase 1 flags") {
     val parsed = AgentArgs.parse(
       List(
@@ -164,6 +206,7 @@ final class RuntimeSpec extends munit.CatsEffectSuite:
         "--answers",
         """{"lang":"scala"}""",
         "--fresh",
+        "--reset",
         "--resume-session",
         "session-1",
         "--adapter",
@@ -175,11 +218,12 @@ final class RuntimeSpec extends munit.CatsEffectSuite:
       parsed,
       Right(
         AgentArgs(
-          agent = true,
-          inlineAnswers = Some(Answers(Map("lang" -> "scala"))),
-          fresh = true,
-          resumeSession = Some(SessionId("session-1")),
-          adapter = Some("claude")
+            agent = true,
+            inlineAnswers = Some(Answers(Map("lang" -> "scala"))),
+            fresh = true,
+            reset = true,
+            resumeSession = Some(SessionId("session-1")),
+            adapter = Some("claude")
         )
       )
     )
@@ -197,6 +241,38 @@ final class RuntimeSpec extends munit.CatsEffectSuite:
         assertEquals(outcome.exitCode, 0)
         assertEquals(outcome.stdout, """{"status":"done","result":{"ok":true}}""")
         assertEquals(outcome.stderr, "")
+    }
+  }
+
+  test("AgentMain resets the answer log before merging inline --answers") {
+    withTempDir { root =>
+      for
+        _ <- AnswerLog.write[IO](root, Answers(Map("old" -> "stale")))
+        outcome <- AgentMain.run[IO](List("--reset", "--answers", """{"lang":"scala"}"""), root) { _ =>
+          IO.pure(ProgramSays.Done(ujson.Obj("ok" -> true)))
+        }
+        answers <- AnswerLog.read[IO](root)
+      yield
+        assertEquals(answers.toMap, Map("lang" -> "scala"))
+        assertEquals(outcome.exitCode, 0)
+    }
+  }
+
+  test("ReplayHygiene prunes answers for questions no longer asked by the replayed flow") {
+    withTempDir { root =>
+      for
+        _ <- AnswerLog.write[IO](
+          root,
+          Answers(Map("lang" -> "scala", "old" -> "stale", "_cache.scala-version" -> "3.8.4"))
+        )
+        result <- ReplayHygiene.run[IO, AskInput, arrowstep.core.ValidAnswers](root, input) { ask =>
+          Dialogue.askUntilValid(ask, Validator.basic[IO])
+        }
+        read <- AnswerLog.read[IO](root)
+      yield
+        assert(result.result.isRight)
+        assertEquals(result.retainedAnswers.toMap, Map("lang" -> "scala", "_cache.scala-version" -> "3.8.4"))
+        assertEquals(read.toMap, Map("lang" -> "scala", "_cache.scala-version" -> "3.8.4"))
     }
   }
 
@@ -233,17 +309,56 @@ final class RuntimeSpec extends munit.CatsEffectSuite:
     }
   }
 
-  test("LiveAsk is an explicit Phase 0 boundary, not a process runner yet") {
+  test("LiveAsk runs the fresh adapter command and persists answers plus returned session id") {
     withTempDir { root =>
-      val ask = LiveAsk[IO](LiveAskConfig(AgentAdapter.Claude, AgentPurpose("setup"), root))
+      val adapter = AgentAdapter("test-agent", List("agent", "{prompt}"), List("agent", "--resume", "{session}", "{prompt}"))
 
-      ask(AskInput(Nil, None)).attempt.map { result =>
-        val message = result match
-          case Left(error) => error.getMessage
-          case Right(_)    => ""
+      for
+        seen <- Ref[IO].of(List.empty[List[String]])
+        ask = LiveAsk.withProcess[IO](LiveAskConfig(adapter, AgentPurpose("setup"), root, fresh = false, resumeSession = None)) {
+          case (command, _, _) =>
+            seen.update(command :: _) *>
+              IO.pure(AgentProcessResult(0, """{"answers":{"lang":"scala"},"sessionId":"session-1"}""", "log"))
+        }
+        answers <- ask(input)
+        commands <- seen.get
+        sessions <- SessionStore.read[IO](root)
+        stored <- AnswerLog.read[IO](root)
+      yield
+        assertEquals(answers.toMap, Map("lang" -> "scala"))
+        assertEquals(commands.map(_.headOption), List(Some("agent")))
+        assert(commands.head.last.contains("Language?"))
+        assertEquals(sessions.get(AgentPurpose("setup")), Some(SessionId("session-1")))
+        assertEquals(stored.toMap, Map("lang" -> "scala"))
+    }
+  }
 
-        assert(message.contains("Phase 3"))
-      }
+  test("LiveAsk resumes the stored session unless fresh is requested") {
+    withTempDir { root =>
+      val adapter = AgentAdapter("test-agent", List("agent", "new", "{prompt}"), List("agent", "resume", "{session}"))
+
+      for
+        _ <- SessionStore.put[IO](root, AgentPurpose("setup"), SessionId("stored-session"))
+        seen <- Ref[IO].of(List.empty[List[String]])
+        resumed = LiveAsk.withProcess[IO](
+          LiveAskConfig(adapter, AgentPurpose("setup"), root, fresh = false, resumeSession = None)
+        ) {
+          case (command, _, _) =>
+            seen.update(command :: _) *> IO.pure(AgentProcessResult(0, """{"lang":"scala"}""", ""))
+        }
+        fresh = LiveAsk.withProcess[IO](
+          LiveAskConfig(adapter, AgentPurpose("setup"), root, fresh = true, resumeSession = None)
+        ) {
+          case (command, _, _) =>
+            seen.update(command :: _) *> IO.pure(AgentProcessResult(0, """{"lang":"scala"}""", ""))
+        }
+        _ <- resumed(input)
+        _ <- fresh(input)
+        commands <- seen.get
+      yield
+        val ordered = commands.reverse
+        assertEquals(ordered.headOption.map(_.take(3)), Some(List("agent", "resume", "stored-session")))
+        assertEquals(ordered.drop(1).headOption.map(_.take(2)), Some(List("agent", "new")))
     }
   }
 
