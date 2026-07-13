@@ -385,6 +385,8 @@ final case class AgentArgs(
 
 object AgentArgs:
 
+  final case class Parsed(args: AgentArgs, rest: List[String])
+
   val empty: AgentArgs =
     AgentArgs(
       agent = false,
@@ -397,35 +399,39 @@ object AgentArgs:
     )
 
   def parse(args: List[String]): Either[String, AgentArgs] =
-    parseLoop(args, empty)
+    parseLoop(args, empty, strict = true).map(_.args)
 
-  private def parseLoop(args: List[String], parsed: AgentArgs): Either[String, AgentArgs] =
+  def parseKnown(args: List[String]): Either[String, Parsed] =
+    parseLoop(args, empty, strict = false)
+
+  private def parseLoop(args: List[String], parsed: AgentArgs, strict: Boolean): Either[String, Parsed] =
     args match
-      case Nil => Right(parsed)
+      case Nil => Right(Parsed(parsed, Nil))
       case "--agent" :: tail =>
-        parseLoop(tail, parsed.copy(agent = true))
+        parseLoop(tail, parsed.copy(agent = true), strict)
       case "--fresh" :: tail =>
-        parseLoop(tail, parsed.copy(fresh = true))
+        parseLoop(tail, parsed.copy(fresh = true), strict)
       case "--reset" :: tail =>
-        parseLoop(tail, parsed.copy(reset = true))
+        parseLoop(tail, parsed.copy(reset = true), strict)
       case "--panes" :: tail =>
-        parseLoop(tail, parsed.copy(panes = true))
+        parseLoop(tail, parsed.copy(panes = true), strict)
       case "--answers" :: raw :: tail =>
         AnswerLog.parse(raw) match
-          case Some(answers) => parseLoop(tail, parsed.copy(inlineAnswers = Some(answers)))
+          case Some(answers) => parseLoop(tail, parsed.copy(inlineAnswers = Some(answers)), strict)
           case None          => Left("invalid JSON for --answers")
       case "--answers" :: Nil =>
         Left("missing value for --answers")
       case "--resume-session" :: value :: tail =>
-        parseLoop(tail, parsed.copy(resumeSession = Some(SessionId(value))))
+        parseLoop(tail, parsed.copy(resumeSession = Some(SessionId(value))), strict)
       case "--resume-session" :: Nil =>
         Left("missing value for --resume-session")
       case "--adapter" :: value :: tail =>
-        parseLoop(tail, parsed.copy(adapter = Some(value)))
+        parseLoop(tail, parsed.copy(adapter = Some(value)), strict)
       case "--adapter" :: Nil =>
         Left("missing value for --adapter")
-      case other :: _ =>
-        Left("unknown argument: " + other)
+      case other :: tail =>
+        if strict then Left("unknown argument: " + other)
+        else parseLoop(tail, parsed, strict).map(rest => rest.copy(rest = other :: rest.rest))
 
 object AgentMain:
 

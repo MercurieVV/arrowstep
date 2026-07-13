@@ -231,6 +231,46 @@ final class RuntimeSpec extends munit.CatsEffectSuite:
     )
   }
 
+  test("AgentArgs.parseKnown leaves consumer arguments after runtime flags") {
+    val parsed = AgentArgs.parseKnown(
+      List("--agent", "--reset", "--answers", """{"lang":"scala"}""", ".", "--consumer-flag")
+    )
+
+    assertEquals(
+      parsed,
+      Right(
+        AgentArgs.Parsed(
+          AgentArgs(
+            agent = true,
+            inlineAnswers = Some(Answers(Map("lang" -> "scala"))),
+            fresh = false,
+            reset = true,
+            panes = false,
+            resumeSession = None,
+            adapter = None
+          ),
+          List(".", "--consumer-flag")
+        )
+      )
+    )
+  }
+
+  test("AgentArgs.parseKnown still validates runtime flag values") {
+    assertEquals(AgentArgs.parseKnown(List("--answers")), Left("missing value for --answers"))
+    assertEquals(AgentArgs.parseKnown(List("--answers", "{")), Left("invalid JSON for --answers"))
+    assertEquals(AgentArgs.parseKnown(List("--resume-session")), Left("missing value for --resume-session"))
+    assertEquals(AgentArgs.parseKnown(List("--adapter")), Left("missing value for --adapter"))
+  }
+
+  test("AgentArgs.parseKnown consumes runtime flags after consumer arguments") {
+    val parsed = AgentArgs.parseKnown(List("--agent", ".", "--answers", """{"lang":"scala"}"""))
+
+    assertEquals(
+      parsed.map(parsed => parsed.args.inlineAnswers -> parsed.rest),
+      Right(Some(Answers(Map("lang" -> "scala"))) -> List("."))
+    )
+  }
+
   test("AgentMain persists inline --answers before running the program") {
     withTempDir { root =>
       for

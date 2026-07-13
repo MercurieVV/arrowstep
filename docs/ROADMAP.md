@@ -44,10 +44,11 @@ skeleton in progress**.
 - [x] Log-file layout & rotation under `.agents/logs/`
 
 ## Phase 5 — First real consumer
-- [ ] Migrate `scala-llm-template/Setup.scala` onto arrowstep (replace `getAgentAnswers`
+- [x] Migrate `scala-llm-template/Setup.scala` onto arrowstep (replace `getAgentAnswers`
       readLine protocol with `ReplayAsk`; express Setup as a `Flow`)
-- [ ] The one-paragraph agent instruction added to that project's CLAUDE.md
-- [ ] Feedback loop: whatever Setup needed that the library lacked → issues here
+- [x] The one-paragraph agent instruction added to that project's CLAUDE.md
+- [x] Feedback loop: whatever Setup needed that the library lacked → issues here
+      (`AgentArgs.parseKnown` preserves consumer positional args while consuming arrowstep flags)
 
 ## Phase 6 — Release
 - [ ] Publish to Maven Central (`scala-cli publish` or migrate to sbt if cross-building demands)
