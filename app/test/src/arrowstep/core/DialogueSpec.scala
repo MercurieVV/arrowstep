@@ -62,12 +62,12 @@ final class DialogueSpec extends munit.FunSuite:
         cats.data.Writer(List(input), Answers(Map("lang" -> answer)))
 
     val (log, _) = Dialogue.askUntilValid(ask, Validator.basic[Logged]).run(start).run
-    log match
-      case _ :: reAsked :: Nil =>
-        assertEquals(reAsked.questions.map(_.id), List("lang"))
-        assert(reAsked.context.exists(_.contains("not in [yes, no]")))
-        reAsked.questions.headOption match
-          case Some(h) => assert(h.context.exists(_.contains("not in [yes, no]")))
-          case None    => fail("re-asked input had no questions")
-      case other => fail(s"expected exactly 2 asks, got ${other.length}")
+      log match
+        case _ :: reAsked :: Nil =>
+          assertEquals(reAsked.questions.map(_.id), List("lang"))
+          assert(reAsked.context.exists(_.contains("not in [yes, no]")))
+          reAsked.questions.headOption match
+            case Some(h) => assert(h.context.exists(_.contains("not in [yes, no]")))
+            case None    => fail("re-asked input had no questions")
+        case _ => assertEquals(log.length, 2)
   }

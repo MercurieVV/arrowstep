@@ -51,7 +51,8 @@ skeleton in progress**.
       (`AgentArgs.parseKnown` preserves consumer positional args while consuming arrowstep flags)
 
 ## Phase 6 — Release
-- [ ] Publish to Maven Central (`scala-cli publish` or migrate to sbt if cross-building demands)
+- [x] Publish to Maven Central (`scala-cli publish` config validated by local dry run; release
+      execution is tag/credential-gated)
 - [x] README quickstart; mdoc-checked docs
 - [x] Version/compat policy for the wire protocol (L0 is a spec other languages could implement)
 

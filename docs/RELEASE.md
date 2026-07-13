@@ -41,7 +41,8 @@ scala-cli --power publish local . \
   --description 'Typed, compiler-checked, replayable dialogues between Scala programs and coding agents.' \
   --signer none \
   --with-sources \
-  --doc
+  --doc \
+  --server=false
 ```
 
 Then verify the expected POM exists:
@@ -76,7 +77,8 @@ scala-cli --power publish . \
   --secret-key env:PGP_SECRET_KEY \
   --secret-key-password env:PGP_SECRET_KEY_PASSWORD \
   --with-sources \
-  --doc
+  --doc \
+  --server=false
 ```
 
 Use an annotated git tag for the release version before publishing:

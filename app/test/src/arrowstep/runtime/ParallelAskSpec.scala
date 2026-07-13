@@ -25,10 +25,14 @@ final class ParallelAskSpec extends munit.CatsEffectSuite:
       rightStarted <- Deferred[IO, Unit]
       left = new Ask[IO]:
         def apply(input: AskInput): IO[Answers] =
-          leftStarted.complete(()) *> rightStarted.get.as(Answers(Map(input.questions.head.id -> "left-answer")))
+          leftStarted.complete(()) *> rightStarted.get.as(
+            input.questions.headOption.fold(Answers(Map.empty))(question => Answers(Map(question.id -> "left-answer")))
+          )
       right = new Ask[IO]:
         def apply(input: AskInput): IO[Answers] =
-          rightStarted.complete(()) *> leftStarted.get.as(Answers(Map(input.questions.head.id -> "right-answer")))
+          rightStarted.complete(()) *> leftStarted.get.as(
+            input.questions.headOption.fold(Answers(Map.empty))(question => Answers(Map(question.id -> "right-answer")))
+          )
       result <- ParallelAsk.both[IO](left, right).run((leftInput, rightInput)).timeout(1.second)
     yield assertEquals(
       result,

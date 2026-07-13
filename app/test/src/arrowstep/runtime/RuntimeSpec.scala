@@ -433,7 +433,7 @@ final class RuntimeSpec extends munit.CatsEffectSuite:
       yield
         assertEquals(answers.toMap, Map("lang" -> "scala"))
         assertEquals(commands.map(_.headOption), List(Some("agent")))
-        assert(commands.head.last.contains("Language?"))
+        assert(commands.headOption.flatMap(_.lastOption).exists(_.contains("Language?")))
         assertEquals(observedPrefixes.map(_.label), List("test-agent#setup"))
         assertEquals(sessions.get(AgentPurpose("setup")), Some(SessionId("session-1")))
         assertEquals(stored.toMap, Map("lang" -> "scala"))

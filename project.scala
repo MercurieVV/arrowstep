@@ -6,6 +6,7 @@
 // //> using options -Werror
 //> using exclude Setup.scala
 //> using exclude scripts
+//> using exclude docs
 //> using exclude mdoc-docs
 //> using exclude website
 //> using exclude build.mill
@@ -19,6 +20,7 @@
 //> using test.dep org.scalameta::munit:1.3.3
 //> using test.dep org.typelevel::munit-cats-effect:2.2.0
 //> using test.dep org.typelevel::shapeless3-deriving:3.6.0
+//> using test.resourceDir app/test/resources
 // Stainless is intentionally not enabled yet: the compiler plugin coordinate is not
 // published for Scala 3.8.4, so formal verification stays non-blocking for Phase 0.
 //> using plugin org.wartremover::wartremover:3.6.1
