@@ -205,11 +205,12 @@ final class RuntimeSpec extends munit.CatsEffectSuite:
         "--agent",
         "--answers",
         """{"lang":"scala"}""",
-        "--fresh",
-        "--reset",
-        "--resume-session",
-        "session-1",
-        "--adapter",
+          "--fresh",
+          "--reset",
+          "--panes",
+          "--resume-session",
+          "session-1",
+          "--adapter",
         "claude"
       )
     )
@@ -219,12 +220,13 @@ final class RuntimeSpec extends munit.CatsEffectSuite:
       Right(
         AgentArgs(
             agent = true,
-            inlineAnswers = Some(Answers(Map("lang" -> "scala"))),
-            fresh = true,
-            reset = true,
-            resumeSession = Some(SessionId("session-1")),
-            adapter = Some("claude")
-        )
+              inlineAnswers = Some(Answers(Map("lang" -> "scala"))),
+              fresh = true,
+              reset = true,
+              panes = true,
+              resumeSession = Some(SessionId("session-1")),
+              adapter = Some("claude")
+          )
       )
     )
   }
@@ -309,25 +311,90 @@ final class RuntimeSpec extends munit.CatsEffectSuite:
     }
   }
 
+  test("AgentOutputPrefix prefixes each agent stderr line without changing log text") {
+    val prefix = AgentOutputPrefix.from(
+      AgentAdapter("claude", List("claude"), List("claude")),
+      AgentPurpose("2")
+    )
+
+    assertEquals(AgentOutputPrefix.prefix("first\nsecond\n", prefix, colored = false), "[claude#2] first\n[claude#2] second\n")
+    assert(AgentOutputPrefix.prefix("first\n", prefix, colored = true).contains("[claude#2] "))
+  }
+
+  test("LiveAsk default process streams stderr into the raw purpose log") {
+    withTempDir { root =>
+      val adapter = AgentAdapter(
+        "shell",
+        List("/bin/sh", "-c", """printf 'first\nsecond\n' >&2; printf '{"lang":"scala"}'"""),
+        List("/bin/sh", "-c", """printf '{"lang":"scala"}'""")
+      )
+
+      for
+        answers <- LiveAsk[IO](LiveAskConfig(adapter, AgentPurpose("setup"), root, fresh = true, resumeSession = None, panes = false))(
+          input
+        )
+        log <- IO(os.read(root / ".agents" / "logs" / "setup.log"))
+      yield
+        assertEquals(answers.toMap, Map("lang" -> "scala"))
+        assertEquals(log, "first\nsecond\n")
+    }
+  }
+
+  test("TmuxPanes builds split-window tail command only when requested inside tmux") {
+    val logFile = os.root / "path with spaces" / "setup's.log"
+
+    assertEquals(TmuxPanes.command(enabled = false, Some("tmux-session"), logFile), None)
+    assertEquals(TmuxPanes.command(enabled = true, None, logFile), None)
+    assertEquals(
+      TmuxPanes.command(enabled = true, Some("tmux-session"), logFile),
+      Some(List("tmux", "split-window", "-h", "tail -f '/path with spaces/setup'\"'\"'s.log'"))
+    )
+  }
+
+  test("AgentLogs rotates bounded purpose logs before appending") {
+    withTempDir { root =>
+      val logFile = AgentLogs.file(root, AgentPurpose("setup"))
+
+      for
+        _ <- IO(os.write(logFile, "current", createFolders = true))
+        _ <- IO(os.write(os.Path(logFile.toString + ".1"), "older"))
+        _ <- AgentLogs.rotate[IO](logFile, maxBytes = 1L, keep = 2)
+        currentExists <- IO(os.exists(logFile))
+        first <- IO(os.read(os.Path(logFile.toString + ".1")))
+        second <- IO(os.read(os.Path(logFile.toString + ".2")))
+      yield
+        assert(!currentExists)
+        assertEquals(first, "current")
+        assertEquals(second, "older")
+    }
+  }
+
   test("LiveAsk runs the fresh adapter command and persists answers plus returned session id") {
     withTempDir { root =>
       val adapter = AgentAdapter("test-agent", List("agent", "{prompt}"), List("agent", "--resume", "{session}", "{prompt}"))
 
       for
         seen <- Ref[IO].of(List.empty[List[String]])
-        ask = LiveAsk.withProcess[IO](LiveAskConfig(adapter, AgentPurpose("setup"), root, fresh = false, resumeSession = None)) {
-          case (command, _, _) =>
+        prefixes <- Ref[IO].of(List.empty[AgentOutputPrefix])
+        ask = LiveAsk.withProcess[IO](
+          LiveAskConfig(adapter, AgentPurpose("setup"), root, fresh = false, resumeSession = None, panes = false)
+        ) {
+          case (command, _, logFile, prefix) =>
             seen.update(command :: _) *>
+              prefixes.update(prefix :: _) *>
+              IO(assertEquals(logFile.relativeTo(root).toString, ".agents/logs/setup.log")) *>
               IO.pure(AgentProcessResult(0, """{"answers":{"lang":"scala"},"sessionId":"session-1"}""", "log"))
         }
         answers <- ask(input)
         commands <- seen.get
+        observedPrefixes <- prefixes.get
         sessions <- SessionStore.read[IO](root)
         stored <- AnswerLog.read[IO](root)
       yield
         assertEquals(answers.toMap, Map("lang" -> "scala"))
         assertEquals(commands.map(_.headOption), List(Some("agent")))
         assert(commands.head.last.contains("Language?"))
+        assertEquals(observedPrefixes.map(_.label), List("test-agent#setup"))
         assertEquals(sessions.get(AgentPurpose("setup")), Some(SessionId("session-1")))
         assertEquals(stored.toMap, Map("lang" -> "scala"))
     }
@@ -340,18 +407,18 @@ final class RuntimeSpec extends munit.CatsEffectSuite:
       for
         _ <- SessionStore.put[IO](root, AgentPurpose("setup"), SessionId("stored-session"))
         seen <- Ref[IO].of(List.empty[List[String]])
-        resumed = LiveAsk.withProcess[IO](
-          LiveAskConfig(adapter, AgentPurpose("setup"), root, fresh = false, resumeSession = None)
-        ) {
-          case (command, _, _) =>
-            seen.update(command :: _) *> IO.pure(AgentProcessResult(0, """{"lang":"scala"}""", ""))
-        }
-        fresh = LiveAsk.withProcess[IO](
-          LiveAskConfig(adapter, AgentPurpose("setup"), root, fresh = true, resumeSession = None)
-        ) {
-          case (command, _, _) =>
-            seen.update(command :: _) *> IO.pure(AgentProcessResult(0, """{"lang":"scala"}""", ""))
-        }
+          resumed = LiveAsk.withProcess[IO](
+            LiveAskConfig(adapter, AgentPurpose("setup"), root, fresh = false, resumeSession = None, panes = false)
+          ) {
+            case (command, _, _, _) =>
+              seen.update(command :: _) *> IO.pure(AgentProcessResult(0, """{"lang":"scala"}""", ""))
+          }
+          fresh = LiveAsk.withProcess[IO](
+            LiveAskConfig(adapter, AgentPurpose("setup"), root, fresh = true, resumeSession = None, panes = false)
+          ) {
+            case (command, _, _, _) =>
+              seen.update(command :: _) *> IO.pure(AgentProcessResult(0, """{"lang":"scala"}""", ""))
+          }
         _ <- resumed(input)
         _ <- fresh(input)
         commands <- seen.get

@@ -39,9 +39,9 @@ skeleton in progress**.
 
 ## Phase 4 — Parallelism & observability
 - [x] Parallel `ask` combinator (`parAsk` over independent question groups / multiple adapters)
-- [ ] Prefixed interleaved streaming (`[claude#2]`, per-agent color) as default display
-- [ ] `--panes`: tmux split-window integration when `$TMUX` is set
-- [ ] Log-file layout & rotation under `.agents/logs/`
+- [x] Prefixed interleaved streaming (`[claude#2]`, per-agent color) as default display
+- [x] `--panes`: tmux split-window integration when `$TMUX` is set
+- [x] Log-file layout & rotation under `.agents/logs/`
 
 ## Phase 5 — First real consumer
 - [ ] Migrate `scala-llm-template/Setup.scala` onto arrowstep (replace `getAgentAnswers`

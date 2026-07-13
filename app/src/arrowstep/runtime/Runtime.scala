@@ -4,6 +4,9 @@ import arrowstep.core.{Answers, Ask, AskInput, Dialogue, Flow, Problem, ProgramS
 import cats.effect.Sync
 import cats.syntax.all.*
 
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+import scala.jdk.CollectionConverters.*
 import scala.util.Try
 
 final case class SessionId(value: String)
@@ -135,10 +138,85 @@ final case class LiveAskConfig(
     purpose: AgentPurpose,
     root: os.Path,
     fresh: Boolean,
-    resumeSession: Option[SessionId]
+    resumeSession: Option[SessionId],
+    panes: Boolean
 )
 
 final case class AgentProcessResult(exitCode: Int, stdout: String, stderr: String)
+
+final case class AgentOutputPrefix(label: String, color: Option[String])
+
+object AgentOutputPrefix:
+  private val Reset = "\u001b[0m"
+  private val Colors =
+    List("\u001b[36m", "\u001b[35m", "\u001b[32m", "\u001b[33m", "\u001b[34m", "\u001b[31m")
+
+  def from(adapter: AgentAdapter, purpose: AgentPurpose): AgentOutputPrefix =
+    AgentOutputPrefix(adapter.name + "#" + purpose.value, colorFor(adapter.name + purpose.value))
+
+  def prefix(text: String, prefix: AgentOutputPrefix, colored: Boolean): String =
+    if text.isEmpty then ""
+    else
+      val renderedPrefix = render(prefix, colored)
+      val trailingNewline = text.endsWith("\n")
+      val lines = text.linesIterator.toList
+      val body = lines.map(line => renderedPrefix + line).mkString("\n")
+      if trailingNewline then body + "\n" else body
+
+  private def render(prefix: AgentOutputPrefix, colored: Boolean): String =
+    val raw = "[" + prefix.label + "] "
+    if colored then prefix.color.fold(raw)(color => color + raw + Reset) else raw
+
+  private def colorFor(value: String): Option[String] =
+    Colors.lift(value.toList.map(_.toInt).sum.abs % Colors.size)
+
+object TmuxPanes:
+  def open[F[_]: Sync](enabled: Boolean, root: os.Path, logFile: os.Path): F[Unit] =
+    command(enabled, sys.env.get("TMUX"), logFile).fold(Sync[F].unit) { tmuxCommand =>
+      Sync[F].blocking {
+        os.proc(tmuxCommand).call(cwd = root, stdout = os.Pipe, stderr = os.Pipe, check = false)
+      }.void
+    }
+
+  def command(enabled: Boolean, tmux: Option[String], logFile: os.Path): Option[List[String]] =
+    Option.when(enabled)(tmux).flatten.map(_ =>
+      List("tmux", "split-window", "-h", "tail -f " + shellQuote(logFile.toString))
+    )
+
+  private def shellQuote(value: String): String =
+    "'" + value.replace("'", "'\"'\"'") + "'"
+
+object AgentLogs:
+  private val AgentsDir = ".agents"
+  private val LogsDir = "logs"
+  private val MaxBytes = 1024L * 1024L
+  private val Keep = 5
+
+  def file(root: os.Path, purpose: AgentPurpose): os.Path =
+    root / AgentsDir / LogsDir / (purpose.value + ".log")
+
+  def rotate[F[_]: Sync](logFile: os.Path): F[Unit] =
+    rotate[F](logFile, MaxBytes, Keep)
+
+  def rotate[F[_]: Sync](logFile: os.Path, maxBytes: Long, keep: Int): F[Unit] =
+    Sync[F].blocking {
+      if os.exists(logFile) && os.size(logFile) >= maxBytes then
+        if keep <= 0 then os.remove(logFile)
+        else
+          val oldest = rotated(logFile, keep)
+          if os.exists(oldest) then os.remove(oldest)
+          List.range(1, keep).reverse.foreach { index =>
+            val current = rotated(logFile, index)
+            if os.exists(current) then move(current, rotated(logFile, index + 1))
+          }
+          move(logFile, rotated(logFile, 1))
+    }
+
+  private def rotated(logFile: os.Path, index: Int): os.Path =
+    os.Path(logFile.toString + "." + index.toString)
+
+  private def move(from: os.Path, to: os.Path): Unit =
+    Files.move(from.toNIO, to.toNIO, StandardCopyOption.REPLACE_EXISTING)
 
 final case class ReplayNeedInput(input: AskInput)
     extends RuntimeException("Replay answer log is missing answers for the requested questions"):
@@ -189,7 +267,7 @@ object ReplayAsk:
 
 final class LiveAsk[F[_]: Sync](
     config: LiveAskConfig,
-    process: (List[String], os.Path, os.Path) => F[AgentProcessResult]
+    process: (List[String], os.Path, os.Path, AgentOutputPrefix) => F[AgentProcessResult]
 ) extends Ask[F]:
 
   def apply(input: AskInput): F[Answers] =
@@ -197,7 +275,11 @@ final class LiveAsk[F[_]: Sync](
       prompt <- Sync[F].pure(LiveAsk.prompt(input))
       session <- LiveAsk.session[F](config)
       command <- Sync[F].fromEither(LiveAsk.command(config.adapter, prompt, session).leftMap(new RuntimeException(_)))
-      result <- process(command, config.root, LiveAsk.logFile(config.root, config.purpose))
+      logFile <- Sync[F].pure(AgentLogs.file(config.root, config.purpose))
+      prefix <- Sync[F].pure(AgentOutputPrefix.from(config.adapter, config.purpose))
+      _ <- AgentLogs.rotate[F](logFile)
+      _ <- TmuxPanes.open[F](config.panes, config.root, logFile)
+      result <- process(command, config.root, logFile, prefix)
       response <- Sync[F].fromEither(LiveAsk.response(result))
       _ <- AnswerLog.read[F](config.root).flatMap(existing =>
         AnswerLog.write[F](config.root, AnswerLog.merge(existing, response.answers))
@@ -208,9 +290,6 @@ final class LiveAsk[F[_]: Sync](
 object LiveAsk:
   private val PromptToken = "{prompt}"
   private val SessionToken = "{session}"
-  private val AgentsDir = ".agents"
-  private val LogsDir = "logs"
-
   private final case class Response(answers: Answers, sessionId: Option[SessionId])
 
   def apply[F[_]: Sync](config: LiveAskConfig): LiveAsk[F] =
@@ -218,7 +297,7 @@ object LiveAsk:
 
   def withProcess[F[_]: Sync](
       config: LiveAskConfig
-  )(process: (List[String], os.Path, os.Path) => F[AgentProcessResult]): LiveAsk[F] =
+  )(process: (List[String], os.Path, os.Path, AgentOutputPrefix) => F[AgentProcessResult]): LiveAsk[F] =
     new LiveAsk[F](config, process)
 
   private def session[F[_]: Sync](config: LiveAskConfig): F[Option[SessionId]] =
@@ -272,20 +351,22 @@ object LiveAsk:
       case arrowstep.core.QuestionKind.Choice(allowed) => "choice: " + allowed.mkString(", ")
     "- " + question.id + ": " + question.text + " (" + kind + ")"
 
-  private def logFile(root: os.Path, purpose: AgentPurpose): os.Path =
-    root / AgentsDir / LogsDir / (purpose.value + ".log")
-
   private def runProcess[F[_]: Sync](
       command: List[String],
       root: os.Path,
-      logFile: os.Path
+      logFile: os.Path,
+      prefix: AgentOutputPrefix
   ): F[AgentProcessResult] =
     Sync[F].blocking {
-      val result = os.proc(command).call(cwd = root, stdout = os.Pipe, stderr = os.Pipe, check = false)
-      val stderr = result.err.text()
-      os.write.append(logFile, stderr, createFolders = true)
-      if stderr.nonEmpty then Console.err.print(stderr)
-      AgentProcessResult(result.exitCode, result.out.text(), stderr)
+      val stderrLines = new java.util.concurrent.ConcurrentLinkedQueue[String]()
+      val stderrSink = os.ProcessOutput.Readlines { line =>
+        val text = line + "\n"
+        stderrLines.add(text)
+        os.write.append(logFile, text, createFolders = true)
+        Console.err.print(AgentOutputPrefix.prefix(text, prefix, colored = true))
+      }
+      val result = os.proc(command).call(cwd = root, stdout = os.Pipe, stderr = stderrSink, check = false)
+      AgentProcessResult(result.exitCode, result.out.text(), stderrLines.iterator().asScala.mkString)
     }
 
 object Runtime:
@@ -297,6 +378,7 @@ final case class AgentArgs(
     inlineAnswers: Option[Answers],
     fresh: Boolean,
     reset: Boolean,
+    panes: Boolean,
     resumeSession: Option[SessionId],
     adapter: Option[String]
 )
@@ -304,7 +386,15 @@ final case class AgentArgs(
 object AgentArgs:
 
   val empty: AgentArgs =
-    AgentArgs(agent = false, inlineAnswers = None, fresh = false, reset = false, resumeSession = None, adapter = None)
+    AgentArgs(
+      agent = false,
+      inlineAnswers = None,
+      fresh = false,
+      reset = false,
+      panes = false,
+      resumeSession = None,
+      adapter = None
+    )
 
   def parse(args: List[String]): Either[String, AgentArgs] =
     parseLoop(args, empty)
@@ -318,6 +408,8 @@ object AgentArgs:
         parseLoop(tail, parsed.copy(fresh = true))
       case "--reset" :: tail =>
         parseLoop(tail, parsed.copy(reset = true))
+      case "--panes" :: tail =>
+        parseLoop(tail, parsed.copy(panes = true))
       case "--answers" :: raw :: tail =>
         AnswerLog.parse(raw) match
           case Some(answers) => parseLoop(tail, parsed.copy(inlineAnswers = Some(answers)))
